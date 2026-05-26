@@ -1,11 +1,11 @@
 import { v } from 'convex/values'
 
-import { mutation, query } from './_generated/server'
+import { internalMutation, internalQuery, mutation } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
-import type { MutationCtx, QueryCtx } from './_generated/server'
+import type { MutationCtx } from './_generated/server'
+import { hashPin, verifyPin } from './authCrypto'
 
 const DEMO_SLUG = 'world-cup-2026'
-const SESSION_LENGTH_MS = 1000 * 60 * 60 * 24 * 30
 const DEFAULT_ENTRY_LOCK_AT = Date.UTC(2026, 5, 11, 19, 0, 0)
 
 type EntryOverview = {
@@ -20,24 +20,25 @@ type EntryOverview = {
   submittedAt: number | null
 }
 
-export const getAuthenticatedOverview = query({
+export const getAuthenticatedOverview = internalQuery({
   args: {
-    sessionToken: v.string(),
+    poolId: v.id('pools'),
+    participantId: v.id('participants'),
     slug: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const session = await getValidSession(ctx, args.sessionToken)
-
-    if (session === null) {
-      return null
-    }
-
     const pool = await ctx.db
       .query('pools')
       .withIndex('by_slug', (q) => q.eq('slug', args.slug ?? DEMO_SLUG))
       .unique()
 
-    if (pool === null || pool._id !== session.poolId) {
+    if (pool === null || pool._id !== args.poolId) {
+      return null
+    }
+
+    const sessionParticipant = await ctx.db.get(args.participantId)
+
+    if (sessionParticipant === null || sessionParticipant.poolId !== pool._id) {
       return null
     }
 
@@ -113,8 +114,8 @@ export const getAuthenticatedOverview = query({
 
     return {
       session: {
-        participantName: session.participant.displayName,
-        isAdmin: session.participant.isAdmin,
+        participantName: sessionParticipant.displayName,
+        isAdmin: sessionParticipant.isAdmin,
       },
       pool: {
         name: pool.name,
@@ -162,7 +163,7 @@ export const getAuthenticatedOverview = query({
   },
 })
 
-export const login = mutation({
+export const loginForHttp = internalMutation({
   args: {
     loginName: v.string(),
     pin: v.string(),
@@ -184,38 +185,77 @@ export const login = mutation({
       .withIndex('by_poolId_and_loginName', (q) => q.eq('poolId', pool._id).eq('loginName', normalizedLoginName))
       .unique()
 
-    if (participant === null || participant.pin !== args.pin) {
+    if (participant === null || !(await verifyPin(args.pin, participant.pinHash))) {
       throw new Error('Participant name or PIN is incorrect.')
     }
 
-    const token = crypto.randomUUID()
-    await ctx.db.insert('participantSessions', {
+    return {
       poolId: pool._id,
       participantId: participant._id,
-      token,
-      expiresAt: Date.now() + SESSION_LENGTH_MS,
-    })
-
-    return {
-      token,
       participantName: participant.displayName,
       isAdmin: participant.isAdmin,
     }
   },
 })
 
-export const logout = mutation({
+export const createRefreshSession = internalMutation({
   args: {
-    sessionToken: v.string(),
+    poolId: v.id('pools'),
+    participantId: v.id('participants'),
+    refreshTokenHash: v.string(),
+    expiresAt: v.number(),
   },
   handler: async (ctx, args) => {
-    const session = await ctx.db
-      .query('participantSessions')
-      .withIndex('by_token', (q) => q.eq('token', args.sessionToken))
-      .unique()
+    return await ctx.db.insert('participantSessions', {
+      poolId: args.poolId,
+      participantId: args.participantId,
+      refreshTokenHash: args.refreshTokenHash,
+      expiresAt: args.expiresAt,
+      revokedAt: null,
+    })
+  },
+})
 
-    if (session !== null) {
-      await ctx.db.delete(session._id)
+export const rotateRefreshSession = internalMutation({
+  args: {
+    sessionId: v.id('participantSessions'),
+    currentRefreshTokenHash: v.string(),
+    refreshTokenHash: v.string(),
+    expiresAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const session = await ctx.db.get(args.sessionId)
+
+    if (
+      session === null ||
+      session.revokedAt !== null ||
+      session.expiresAt <= Date.now() ||
+      session.refreshTokenHash !== args.currentRefreshTokenHash
+    ) {
+      return null
+    }
+
+    await ctx.db.patch(args.sessionId, {
+      refreshTokenHash: args.refreshTokenHash,
+      expiresAt: args.expiresAt,
+    })
+
+    return {
+      poolId: session.poolId,
+      participantId: session.participantId,
+    }
+  },
+})
+
+export const revokeRefreshSession = internalMutation({
+  args: {
+    sessionId: v.id('participantSessions'),
+  },
+  handler: async (ctx, args) => {
+    const session = await ctx.db.get(args.sessionId)
+
+    if (session !== null && session.revokedAt === null) {
+      await ctx.db.patch(args.sessionId, { revokedAt: Date.now() })
     }
 
     return null
@@ -229,7 +269,7 @@ export const upsertParticipantsFromCsv = mutation({
       v.object({
         username: v.string(),
         displayName: v.string(),
-        pin: v.string(),
+        pinHash: v.string(),
         isAdmin: v.boolean(),
       }),
     ),
@@ -252,14 +292,14 @@ export const upsertParticipantsFromCsv = mutation({
           poolId: pool._id,
           displayName,
           loginName,
-          pin: user.pin,
+          pinHash: user.pinHash,
           isAdmin: user.isAdmin,
         })
         inserted += 1
       } else {
         await ctx.db.patch(participant._id, {
           displayName,
-          pin: user.pin,
+          pinHash: user.pinHash,
           isAdmin: user.isAdmin,
         })
         updated += 1
@@ -284,6 +324,9 @@ export const seedDemoPool = mutation({
       .unique()
 
     if (existingPool !== null) {
+      await upsertDemoParticipant(ctx, existingPool._id, 'Ana', 'ana', await hashPin('pool'), true)
+      await upsertDemoParticipant(ctx, existingPool._id, 'Diego', 'diego', await hashPin('pool'), false)
+      await upsertDemoParticipant(ctx, existingPool._id, 'Maya', 'maya', await hashPin('pool'), false)
       return existingPool._id
     }
 
@@ -335,9 +378,9 @@ export const seedDemoPool = mutation({
     await ctx.db.insert('stageBonuses', { poolId, stage: 'Semifinal', points: 7, sortOrder: 3 })
     await ctx.db.insert('stageBonuses', { poolId, stage: 'Champion', points: 12, sortOrder: 4 })
 
-    const anaId = await insertParticipant(ctx, poolId, 'Ana', 'ana', 'pool', true)
-    const diegoId = await insertParticipant(ctx, poolId, 'Diego', 'diego', 'pool', false)
-    const mayaId = await insertParticipant(ctx, poolId, 'Maya', 'maya', 'pool', false)
+    const anaId = await insertParticipant(ctx, poolId, 'Ana', 'ana', await hashPin('pool'), true)
+    const diegoId = await insertParticipant(ctx, poolId, 'Diego', 'diego', await hashPin('pool'), false)
+    const mayaId = await insertParticipant(ctx, poolId, 'Maya', 'maya', await hashPin('pool'), false)
 
     await insertEntry(ctx, poolId, anaId, messiId, now, [
       [contenderTierId, argentinaId],
@@ -389,16 +432,42 @@ async function insertParticipant(
   poolId: Id<'pools'>,
   displayName: string,
   loginName: string,
-  pin: string,
+  pinHash: string,
   isAdmin: boolean,
 ) {
   return await ctx.db.insert('participants', {
     poolId,
     displayName,
     loginName,
-    pin,
+    pinHash,
     isAdmin,
   })
+}
+
+async function upsertDemoParticipant(
+  ctx: MutationCtx,
+  poolId: Id<'pools'>,
+  displayName: string,
+  loginName: string,
+  pinHash: string,
+  isAdmin: boolean,
+) {
+  const existingParticipant = await ctx.db
+    .query('participants')
+    .withIndex('by_poolId_and_loginName', (q) => q.eq('poolId', poolId).eq('loginName', loginName))
+    .unique()
+
+  if (existingParticipant === null) {
+    return await insertParticipant(ctx, poolId, displayName, loginName, pinHash, isAdmin)
+  }
+
+  await ctx.db.patch(existingParticipant._id, {
+    displayName,
+    pinHash,
+    isAdmin,
+  })
+
+  return existingParticipant._id
 }
 
 async function insertEntry(
@@ -420,28 +489,6 @@ async function insertEntry(
 
   for (const [tierId, teamId] of teamPicks) {
     await ctx.db.insert('entryTeamPicks', { poolId, entryId, tierId, teamId })
-  }
-}
-
-async function getValidSession(ctx: QueryCtx, sessionToken: string) {
-  const session = await ctx.db
-    .query('participantSessions')
-    .withIndex('by_token', (q) => q.eq('token', sessionToken))
-    .unique()
-
-  if (session === null || session.expiresAt <= Date.now()) {
-    return null
-  }
-
-  const participant = await ctx.db.get(session.participantId)
-
-  if (participant === null) {
-    return null
-  }
-
-  return {
-    ...session,
-    participant,
   }
 }
 

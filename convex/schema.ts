@@ -14,7 +14,7 @@ export default defineSchema({
     poolId: v.id('pools'),
     displayName: v.string(),
     loginName: v.string(),
-    pin: v.string(),
+    pinHash: v.string(),
     isAdmin: v.boolean(),
   })
     .index('by_poolId', ['poolId'])
@@ -23,10 +23,11 @@ export default defineSchema({
   participantSessions: defineTable({
     poolId: v.id('pools'),
     participantId: v.id('participants'),
-    token: v.string(),
+    refreshTokenHash: v.string(),
     expiresAt: v.number(),
+    revokedAt: v.union(v.number(), v.null()),
   })
-    .index('by_token', ['token'])
+    .index('by_refreshTokenHash', ['refreshTokenHash'])
     .index('by_participantId', ['participantId']),
 
   teamTiers: defineTable({

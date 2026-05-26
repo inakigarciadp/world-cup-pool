@@ -8,6 +8,8 @@
  * @module
  */
 
+import type * as authCrypto from "../authCrypto.js";
+import type * as http from "../http.js";
 import type * as pools from "../pools.js";
 
 import type {
@@ -17,6 +19,8 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  authCrypto: typeof authCrypto;
+  http: typeof http;
   pools: typeof pools;
 }>;
 
