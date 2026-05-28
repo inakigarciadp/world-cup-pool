@@ -11,6 +11,7 @@ export type Overview = {
     slug: string
     entryLockAt: number
     status: 'setup' | 'open' | 'locked' | 'scoring'
+    canEditEntry: boolean
   }
   counts: {
     participants: number
@@ -81,10 +82,12 @@ export async function getOverview() {
 }
 
 export async function saveEntry(teamPickIds: string[], goalscorerPickId: string | null) {
-  return await parseJsonResponse(await fetchWithRefreshRetry('/api/entry', {
-    method: 'POST',
-    body: JSON.stringify({ teamPickIds, goalscorerPickId }),
-  }))
+  return await parseJsonResponse(
+    await fetchWithRefreshRetry('/api/entry', {
+      method: 'POST',
+      body: JSON.stringify({ teamPickIds, goalscorerPickId }),
+    }),
+  )
 }
 
 async function request(path: string, init: RequestInit) {
