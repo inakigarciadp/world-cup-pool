@@ -42,6 +42,7 @@ export default defineSchema({
     tierId: v.id('teamTiers'),
     name: v.string(),
     fifaCode: v.string(),
+    groupCode: v.optional(v.string()),
   })
     .index('by_poolId', ['poolId'])
     .index('by_tierId', ['tierId']),

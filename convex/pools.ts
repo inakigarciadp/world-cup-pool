@@ -20,6 +20,91 @@ type EntryOverview = {
   submittedAt: number | null
 }
 
+const teamSeed = [
+  { name: 'México', fifaCode: 'MEX', groupCode: 'A', tierOrder: 1 },
+  { name: 'Sudáfrica', fifaCode: 'RSA', groupCode: 'A', tierOrder: 3 },
+  { name: 'Corea del Sur', fifaCode: 'KOR', groupCode: 'A', tierOrder: 2 },
+  { name: 'Chequia', fifaCode: 'CZE', groupCode: 'A', tierOrder: 4 },
+  { name: 'Canadá', fifaCode: 'CAN', groupCode: 'B', tierOrder: 1 },
+  { name: 'Suiza', fifaCode: 'SUI', groupCode: 'B', tierOrder: 2 },
+  { name: 'Catar', fifaCode: 'QAT', groupCode: 'B', tierOrder: 3 },
+  { name: 'Bosnia y Herzegovina', fifaCode: 'BIH', groupCode: 'B', tierOrder: 4 },
+  { name: 'Brasil', fifaCode: 'BRA', groupCode: 'C', tierOrder: 1 },
+  { name: 'Marruecos', fifaCode: 'MAR', groupCode: 'C', tierOrder: 2 },
+  { name: 'Haití', fifaCode: 'HAI', groupCode: 'C', tierOrder: 3 },
+  { name: 'Escocia', fifaCode: 'SCO', groupCode: 'C', tierOrder: 4 },
+  { name: 'Estados Unidos', fifaCode: 'USA', groupCode: 'D', tierOrder: 1 },
+  { name: 'Paraguay', fifaCode: 'PAR', groupCode: 'D', tierOrder: 2 },
+  { name: 'Australia', fifaCode: 'AUS', groupCode: 'D', tierOrder: 3 },
+  { name: 'Turquía', fifaCode: 'TUR', groupCode: 'D', tierOrder: 4 },
+  { name: 'Alemania', fifaCode: 'GER', groupCode: 'E', tierOrder: 1 },
+  { name: 'Curazao', fifaCode: 'CUW', groupCode: 'E', tierOrder: 4 },
+  { name: 'Costa de Marfil', fifaCode: 'CIV', groupCode: 'E', tierOrder: 3 },
+  { name: 'Ecuador', fifaCode: 'ECU', groupCode: 'E', tierOrder: 2 },
+  { name: 'Países Bajos', fifaCode: 'NED', groupCode: 'F', tierOrder: 1 },
+  { name: 'Japón', fifaCode: 'JPN', groupCode: 'F', tierOrder: 2 },
+  { name: 'Túnez', fifaCode: 'TUN', groupCode: 'F', tierOrder: 3 },
+  { name: 'Suecia', fifaCode: 'SWE', groupCode: 'F', tierOrder: 4 },
+  { name: 'Bélgica', fifaCode: 'BEL', groupCode: 'G', tierOrder: 1 },
+  { name: 'Egipto', fifaCode: 'EGY', groupCode: 'G', tierOrder: 2 },
+  { name: 'Irán', fifaCode: 'IRN', groupCode: 'G', tierOrder: 3 },
+  { name: 'Nueva Zelanda', fifaCode: 'NZL', groupCode: 'G', tierOrder: 4 },
+  { name: 'España', fifaCode: 'ESP', groupCode: 'H', tierOrder: 1 },
+  { name: 'Cabo Verde', fifaCode: 'CPV', groupCode: 'H', tierOrder: 4 },
+  { name: 'Arabia Saudí', fifaCode: 'KSA', groupCode: 'H', tierOrder: 3 },
+  { name: 'Uruguay', fifaCode: 'URU', groupCode: 'H', tierOrder: 2 },
+  { name: 'Francia', fifaCode: 'FRA', groupCode: 'I', tierOrder: 1 },
+  { name: 'Senegal', fifaCode: 'SEN', groupCode: 'I', tierOrder: 2 },
+  { name: 'Irak', fifaCode: 'IRQ', groupCode: 'I', tierOrder: 4 },
+  { name: 'Noruega', fifaCode: 'NOR', groupCode: 'I', tierOrder: 3 },
+  { name: 'Argentina', fifaCode: 'ARG', groupCode: 'J', tierOrder: 1 },
+  { name: 'Argelia', fifaCode: 'ALG', groupCode: 'J', tierOrder: 2 },
+  { name: 'Austria', fifaCode: 'AUT', groupCode: 'J', tierOrder: 3 },
+  { name: 'Jordania', fifaCode: 'JOR', groupCode: 'J', tierOrder: 4 },
+  { name: 'Portugal', fifaCode: 'POR', groupCode: 'K', tierOrder: 1 },
+  { name: 'Uzbekistán', fifaCode: 'UZB', groupCode: 'K', tierOrder: 3 },
+  { name: 'Colombia', fifaCode: 'COL', groupCode: 'K', tierOrder: 2 },
+  { name: 'RD Congo', fifaCode: 'COD', groupCode: 'K', tierOrder: 4 },
+  { name: 'Inglaterra', fifaCode: 'ENG', groupCode: 'L', tierOrder: 1 },
+  { name: 'Croacia', fifaCode: 'CRO', groupCode: 'L', tierOrder: 2 },
+  { name: 'Ghana', fifaCode: 'GHA', groupCode: 'L', tierOrder: 3 },
+  { name: 'Panamá', fifaCode: 'PAN', groupCode: 'L', tierOrder: 4 },
+]
+
+const tierSeed = [
+  { name: 'Bombo 1', requiredPicks: 2, sortOrder: 1 },
+  { name: 'Bombo 2', requiredPicks: 2, sortOrder: 2 },
+  { name: 'Bombo 3', requiredPicks: 1, sortOrder: 3 },
+  { name: 'Bombo 4', requiredPicks: 1, sortOrder: 4 },
+]
+
+const eligiblePlayerSeed = [
+  ['Kylian Mbappe', 'Francia'],
+  ['Harry Kane', 'Inglaterra'],
+  ['Lionel Messi', 'Argentina'],
+  ['Erling Haaland', 'Noruega'],
+  ['Cristiano Ronaldo', 'Portugal'],
+  ['Vinicius Junior', 'Brasil'],
+  ['Jude Bellingham', 'Inglaterra'],
+  ['Lautaro Martinez', 'Argentina'],
+  ['Julian Alvarez', 'Argentina'],
+  ['Raphinha', 'Brasil'],
+  ['Neymar', 'Brasil'],
+  ['Lamine Yamal', 'España'],
+  ['Mikel Oyarzabal', 'España'],
+  ['Florian Wirtz', 'Alemania'],
+  ['Jamal Musiala', 'Alemania'],
+  ['Cody Gakpo', 'Países Bajos'],
+  ['Memphis Depay', 'Países Bajos'],
+  ['Romelu Lukaku', 'Bélgica'],
+  ['Mohamed Salah', 'Egipto'],
+  ['Luis Diaz', 'Colombia'],
+  ['Darwin Nunez', 'Uruguay'],
+  ['Son Heung-min', 'Corea del Sur'],
+  ['Christian Pulisic', 'Estados Unidos'],
+  ['Santiago Giménez', 'México'],
+] as const
+
 export const getAuthenticatedOverview = internalQuery({
   args: {
     poolId: v.id('pools'),
@@ -111,6 +196,7 @@ export const getAuthenticatedOverview = internalQuery({
         submittedAt: entry.submittedAt,
       }
     })
+    const currentEntry = entries.find((entry) => entry.participantId === sessionParticipant._id) ?? null
 
     return {
       session: {
@@ -141,6 +227,7 @@ export const getAuthenticatedOverview = internalQuery({
             id: team._id,
             name: team.name,
             fifaCode: team.fifaCode,
+            groupCode: team.groupCode ?? '?',
           })),
       })),
       eligiblePlayers: eligiblePlayers
@@ -159,7 +246,114 @@ export const getAuthenticatedOverview = internalQuery({
       leaderboard: entryOverviews.sort(
         (left, right) => right.currentScore - left.currentScore || left.participantName.localeCompare(right.participantName),
       ),
+      currentEntry:
+        currentEntry === null
+          ? null
+          : {
+              teamPickIds: (picksByEntryId.get(currentEntry._id) ?? []).map((pick) => pick.teamId),
+              goalscorerPickId: currentEntry.goalscorerPickId,
+            },
     }
+  },
+})
+
+export const saveEntryForHttp = internalMutation({
+  args: {
+    poolId: v.id('pools'),
+    participantId: v.id('participants'),
+    teamPickIds: v.array(v.id('teams')),
+    goalscorerPickId: v.union(v.id('eligiblePlayers'), v.null()),
+  },
+  handler: async (ctx, args) => {
+    const pool = await ctx.db.get(args.poolId)
+    const participant = await ctx.db.get(args.participantId)
+
+    if (pool === null || participant === null || participant.poolId !== pool._id) {
+      throw new Error('No autorizado.')
+    }
+
+    if (pool.status !== 'open' || pool.entryLockAt <= Date.now()) {
+      throw new Error('La entrada ya esta cerrada.')
+    }
+
+    const tiers = await ctx.db
+      .query('teamTiers')
+      .withIndex('by_poolId_and_sortOrder', (q) => q.eq('poolId', pool._id))
+      .take(25)
+    const teams = await Promise.all(args.teamPickIds.map(async (teamId) => await ctx.db.get(teamId)))
+    const activeGoalscorer =
+      args.goalscorerPickId === null ? null : await ctx.db.get(args.goalscorerPickId)
+
+    if (activeGoalscorer === null || activeGoalscorer.poolId !== pool._id || !activeGoalscorer.isActive) {
+      throw new Error('Elige un goleador valido.')
+    }
+
+    if (new Set(args.teamPickIds).size !== args.teamPickIds.length) {
+      throw new Error('No puedes elegir el mismo equipo dos veces.')
+    }
+
+    for (const team of teams) {
+      if (team === null || team.poolId !== pool._id) {
+        throw new Error('Elige equipos validos.')
+      }
+    }
+
+    for (const tier of tiers) {
+      const picksForTier = teams.filter((team) => team?.tierId === tier._id)
+
+      if (picksForTier.length !== tier.requiredPicks) {
+        throw new Error(`Elige ${tier.requiredPicks} equipos en ${tier.name}.`)
+      }
+    }
+
+    const existingEntry = await ctx.db
+      .query('entries')
+      .withIndex('by_poolId_and_participantId', (q) => q.eq('poolId', pool._id).eq('participantId', participant._id))
+      .unique()
+    const now = Date.now()
+    const entryId =
+      existingEntry === null
+        ? await ctx.db.insert('entries', {
+            poolId: pool._id,
+            participantId: participant._id,
+            goalscorerPickId: activeGoalscorer._id,
+            currentScore: 0,
+            submittedAt: now,
+            updatedAt: now,
+          })
+        : existingEntry._id
+
+    if (existingEntry !== null) {
+      await ctx.db.patch(existingEntry._id, {
+        goalscorerPickId: activeGoalscorer._id,
+        submittedAt: existingEntry.submittedAt ?? now,
+        updatedAt: now,
+      })
+
+      const existingPicks = await ctx.db
+        .query('entryTeamPicks')
+        .withIndex('by_entryId', (q) => q.eq('entryId', existingEntry._id))
+        .take(100)
+
+      for (const pick of existingPicks) {
+        await ctx.db.delete(pick._id)
+      }
+    }
+
+    for (const team of teams) {
+      if (team === null) {
+        throw new Error('Elige equipos validos.')
+      }
+
+      await ctx.db.insert('entryTeamPicks', {
+        poolId: pool._id,
+        entryId,
+        tierId: team.tierId,
+        teamId: team._id,
+      })
+    }
+
+    return { entryId }
   },
 })
 
@@ -279,6 +473,8 @@ export const upsertParticipantsFromCsv = mutation({
     let inserted = 0
     let updated = 0
 
+    await ensureWorldCupSeedData(ctx, pool._id)
+
     for (const user of args.users) {
       const loginName = user.username.trim().toLowerCase()
       const displayName = user.displayName.trim() || loginName
@@ -324,6 +520,7 @@ export const seedDemoPool = mutation({
       .unique()
 
     if (existingPool !== null) {
+      await ensureWorldCupSeedData(ctx, existingPool._id)
       await upsertDemoParticipant(ctx, existingPool._id, 'Ana', 'ana', await hashPin('pool'), true)
       await upsertDemoParticipant(ctx, existingPool._id, 'Diego', 'diego', await hashPin('pool'), false)
       await upsertDemoParticipant(ctx, existingPool._id, 'Maya', 'maya', await hashPin('pool'), false)
@@ -339,39 +536,7 @@ export const seedDemoPool = mutation({
       status: 'open',
     })
 
-    const contenderTierId = await ctx.db.insert('teamTiers', {
-      poolId,
-      name: 'Contenders',
-      requiredPicks: 2,
-      sortOrder: 1,
-    })
-    const chasingTierId = await ctx.db.insert('teamTiers', {
-      poolId,
-      name: 'Chasing Pack',
-      requiredPicks: 2,
-      sortOrder: 2,
-    })
-    const wildcardTierId = await ctx.db.insert('teamTiers', {
-      poolId,
-      name: 'Wildcards',
-      requiredPicks: 1,
-      sortOrder: 3,
-    })
-
-    const argentinaId = await insertTeam(ctx, poolId, contenderTierId, 'Argentina', 'ARG')
-    const brazilId = await insertTeam(ctx, poolId, contenderTierId, 'Brazil', 'BRA')
-    const franceId = await insertTeam(ctx, poolId, contenderTierId, 'France', 'FRA')
-    const spainId = await insertTeam(ctx, poolId, contenderTierId, 'Spain', 'ESP')
-    const englandId = await insertTeam(ctx, poolId, chasingTierId, 'England', 'ENG')
-    const germanyId = await insertTeam(ctx, poolId, chasingTierId, 'Germany', 'GER')
-    const portugalId = await insertTeam(ctx, poolId, chasingTierId, 'Portugal', 'POR')
-    const netherlandsId = await insertTeam(ctx, poolId, chasingTierId, 'Netherlands', 'NED')
-    const usaId = await insertTeam(ctx, poolId, wildcardTierId, 'United States', 'USA')
-    const mexicoId = await insertTeam(ctx, poolId, wildcardTierId, 'Mexico', 'MEX')
-
-    const messiId = await insertEligiblePlayer(ctx, poolId, 'Lionel Messi', 'Argentina')
-    const mbappeId = await insertEligiblePlayer(ctx, poolId, 'Kylian Mbappe', 'France')
-    const kaneId = await insertEligiblePlayer(ctx, poolId, 'Harry Kane', 'England')
+    const seedData = await ensureWorldCupSeedData(ctx, poolId)
 
     await ctx.db.insert('stageBonuses', { poolId, stage: 'Round of 16', points: 2, sortOrder: 1 })
     await ctx.db.insert('stageBonuses', { poolId, stage: 'Quarterfinal', points: 4, sortOrder: 2 })
@@ -382,26 +547,29 @@ export const seedDemoPool = mutation({
     const diegoId = await insertParticipant(ctx, poolId, 'Diego', 'diego', await hashPin('pool'), false)
     const mayaId = await insertParticipant(ctx, poolId, 'Maya', 'maya', await hashPin('pool'), false)
 
-    await insertEntry(ctx, poolId, anaId, messiId, now, [
-      [contenderTierId, argentinaId],
-      [contenderTierId, franceId],
-      [chasingTierId, portugalId],
-      [chasingTierId, germanyId],
-      [wildcardTierId, usaId],
+    await insertEntry(ctx, poolId, anaId, seedData.playersByName.get('Lionel Messi')!, now, [
+      [seedData.tiersByOrder.get(1)!, seedData.teamsByName.get('Argentina')!],
+      [seedData.tiersByOrder.get(1)!, seedData.teamsByName.get('Francia')!],
+      [seedData.tiersByOrder.get(2)!, seedData.teamsByName.get('Brasil')!],
+      [seedData.tiersByOrder.get(2)!, seedData.teamsByName.get('Portugal')!],
+      [seedData.tiersByOrder.get(3)!, seedData.teamsByName.get('Estados Unidos')!],
+      [seedData.tiersByOrder.get(4)!, seedData.teamsByName.get('México')!],
     ])
-    await insertEntry(ctx, poolId, diegoId, mbappeId, now, [
-      [contenderTierId, franceId],
-      [contenderTierId, brazilId],
-      [chasingTierId, englandId],
-      [chasingTierId, netherlandsId],
-      [wildcardTierId, mexicoId],
+    await insertEntry(ctx, poolId, diegoId, seedData.playersByName.get('Kylian Mbappe')!, now, [
+      [seedData.tiersByOrder.get(1)!, seedData.teamsByName.get('Francia')!],
+      [seedData.tiersByOrder.get(1)!, seedData.teamsByName.get('Inglaterra')!],
+      [seedData.tiersByOrder.get(2)!, seedData.teamsByName.get('Uruguay')!],
+      [seedData.tiersByOrder.get(2)!, seedData.teamsByName.get('Países Bajos')!],
+      [seedData.tiersByOrder.get(3)!, seedData.teamsByName.get('Noruega')!],
+      [seedData.tiersByOrder.get(4)!, seedData.teamsByName.get('Suecia')!],
     ])
-    await insertEntry(ctx, poolId, mayaId, kaneId, now, [
-      [contenderTierId, spainId],
-      [contenderTierId, argentinaId],
-      [chasingTierId, englandId],
-      [chasingTierId, portugalId],
-      [wildcardTierId, usaId],
+    await insertEntry(ctx, poolId, mayaId, seedData.playersByName.get('Harry Kane')!, now, [
+      [seedData.tiersByOrder.get(1)!, seedData.teamsByName.get('España')!],
+      [seedData.tiersByOrder.get(1)!, seedData.teamsByName.get('Argentina')!],
+      [seedData.tiersByOrder.get(2)!, seedData.teamsByName.get('Colombia')!],
+      [seedData.tiersByOrder.get(2)!, seedData.teamsByName.get('Croacia')!],
+      [seedData.tiersByOrder.get(3)!, seedData.teamsByName.get('Egipto')!],
+      [seedData.tiersByOrder.get(4)!, seedData.teamsByName.get('Escocia')!],
     ])
 
     return poolId
@@ -414,8 +582,9 @@ async function insertTeam(
   tierId: Id<'teamTiers'>,
   name: string,
   fifaCode: string,
+  groupCode: string,
 ) {
-  return await ctx.db.insert('teams', { poolId, tierId, name, fifaCode })
+  return await ctx.db.insert('teams', { poolId, tierId, name, fifaCode, groupCode })
 }
 
 async function insertEligiblePlayer(
@@ -425,6 +594,90 @@ async function insertEligiblePlayer(
   teamName: string,
 ) {
   return await ctx.db.insert('eligiblePlayers', { poolId, name, teamName, isActive: true })
+}
+
+async function ensureWorldCupSeedData(ctx: MutationCtx, poolId: Id<'pools'>) {
+  const existingTiers = await ctx.db
+    .query('teamTiers')
+    .withIndex('by_poolId_and_sortOrder', (q) => q.eq('poolId', poolId))
+    .take(25)
+  const existingTeams = await ctx.db.query('teams').withIndex('by_poolId', (q) => q.eq('poolId', poolId)).take(100)
+  const existingPlayers = await ctx.db
+    .query('eligiblePlayers')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .take(200)
+  const tiersByOrder = new Map(existingTiers.map((tier) => [tier.sortOrder, tier._id]))
+  const teamsByCode = new Map(existingTeams.map((team) => [team.fifaCode, team._id]))
+  const teamsByName = new Map(existingTeams.map((team) => [team.name, team._id]))
+  const playersByName = new Map(existingPlayers.map((player) => [player.name, player._id]))
+
+  for (const tier of tierSeed) {
+    const existingTierId = tiersByOrder.get(tier.sortOrder)
+
+    if (existingTierId === undefined) {
+      tiersByOrder.set(
+        tier.sortOrder,
+        await ctx.db.insert('teamTiers', {
+          poolId,
+          name: tier.name,
+          requiredPicks: tier.requiredPicks,
+          sortOrder: tier.sortOrder,
+        }),
+      )
+    } else {
+      await ctx.db.patch(existingTierId, {
+        name: tier.name,
+        requiredPicks: tier.requiredPicks,
+      })
+    }
+  }
+
+  for (const team of teamSeed) {
+    const existingId = teamsByCode.get(team.fifaCode)
+    const tierId = tiersByOrder.get(team.tierOrder)
+
+    if (tierId === undefined) {
+      throw new Error('No se han podido preparar los bombos.')
+    }
+
+    if (existingId === undefined) {
+      const teamId = await insertTeam(ctx, poolId, tierId, team.name, team.fifaCode, team.groupCode)
+      teamsByCode.set(team.fifaCode, teamId)
+      teamsByName.set(team.name, teamId)
+    } else {
+      await ctx.db.patch(existingId, {
+        name: team.name,
+        tierId,
+        fifaCode: team.fifaCode,
+        groupCode: team.groupCode,
+      })
+      teamsByName.set(team.name, existingId)
+    }
+  }
+
+  for (const [name, teamName] of eligiblePlayerSeed) {
+    const existingPlayerId = playersByName.get(name)
+
+    if (existingPlayerId === undefined) {
+      playersByName.set(name, await insertEligiblePlayer(ctx, poolId, name, teamName))
+    } else {
+      await ctx.db.patch(existingPlayerId, { teamName, isActive: true })
+    }
+  }
+
+  const removedPlayerNames = new Set(['Alvaro Morata'])
+
+  for (const player of existingPlayers) {
+    if (removedPlayerNames.has(player.name) && player.isActive) {
+      await ctx.db.patch(player._id, { isActive: false })
+    }
+  }
+
+  return {
+    tiersByOrder,
+    teamsByName,
+    playersByName,
+  }
 }
 
 async function insertParticipant(
@@ -507,13 +760,15 @@ async function getOrCreatePool(ctx: MutationCtx, slug: string) {
     slug,
     entryLockAt: DEFAULT_ENTRY_LOCK_AT,
     adminPin: 'change-me',
-    status: 'setup',
+    status: 'open',
   })
   const createdPool = await ctx.db.get(poolId)
 
   if (createdPool === null) {
     throw new Error('Failed to create pool.')
   }
+
+  await ensureWorldCupSeedData(ctx, createdPool._id)
 
   return createdPool
 }

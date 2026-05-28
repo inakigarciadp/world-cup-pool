@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
-import { CalendarClock, ListChecks, LogOut, Shield, Trophy } from 'lucide-react'
+import { CalendarClock, ListChecks, LogOut, Save, Shield, Trophy } from 'lucide-react'
 import { useMutation } from 'convex/react'
 
 import { api } from '../convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { getOverview, login, logout, type Overview } from '@/lib/httpApi'
+import { getOverview, login, logout, saveEntry, type Overview } from '@/lib/httpApi'
 
 type ProtectedRoute = 'leaderboard' | 'entries' | 'setup'
 
@@ -129,7 +129,7 @@ function ConnectedApp() {
         </aside>
 
         {route === 'leaderboard' ? <Leaderboard overview={overview} /> : null}
-        {route === 'entries' ? <Entries overview={overview} /> : null}
+        {route === 'entries' ? <Entries overview={overview} onOverviewChange={setOverview} /> : null}
         {route === 'setup' ? <Setup overview={overview} /> : null}
       </div>
     </main>
@@ -270,31 +270,154 @@ function Leaderboard({ overview }: { overview: Overview }) {
   )
 }
 
-function Entries({ overview }: { overview: Overview }) {
+function Entries({ overview, onOverviewChange }: { overview: Overview; onOverviewChange: (overview: Overview) => void }) {
   return (
-    <section className="grid gap-4 md:grid-cols-2">
-      {overview.leaderboard.map((entry) => (
-        <Card key={entry.entryId}>
-          <CardHeader>
-            <CardTitle>{entry.participantName}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm">
-            <div>
-              <p className="text-muted-foreground">Goleador elegido</p>
-              <p className="font-medium">{entry.goalscorerPick ?? 'Sin elegir'}</p>
-            </div>
-            <div className="space-y-2">
-              {entry.teamPicks.map((pick) => (
-                <div key={`${entry.entryId}-${pick.tierName}-${pick.teamName}`} className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
-                  <span className="text-muted-foreground">{pick.tierName}</span>
-                  <span className="font-medium">{pick.teamName}</span>
+    <section className="space-y-5">
+      <EntryEditor overview={overview} onOverviewChange={onOverviewChange} />
+      <div className="grid gap-4 md:grid-cols-2">
+        {overview.leaderboard.map((entry) => (
+          <Card key={entry.entryId}>
+            <CardHeader>
+              <CardTitle>{entry.participantName}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <div>
+                <p className="text-muted-foreground">Goleador elegido</p>
+                <p className="font-medium">{entry.goalscorerPick ?? 'Sin elegir'}</p>
+              </div>
+              <div className="space-y-2">
+                {entry.teamPicks.map((pick) => (
+                  <div key={`${entry.entryId}-${pick.tierName}-${pick.teamName}`} className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+                    <span className="text-muted-foreground">{pick.tierName}</span>
+                    <span className="font-medium">{pick.teamName}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function EntryEditor({ overview, onOverviewChange }: { overview: Overview; onOverviewChange: (overview: Overview) => void }) {
+  const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>(overview.currentEntry?.teamPickIds ?? [])
+  const [goalscorerPickId, setGoalscorerPickId] = useState(overview.currentEntry?.goalscorerPickId ?? '')
+  const [error, setError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
+  const isLocked = overview.pool.status !== 'open' || overview.pool.entryLockAt <= now
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setNow(Date.now()), Math.max(overview.pool.entryLockAt - Date.now(), 0))
+    return () => window.clearTimeout(timeoutId)
+  }, [overview.pool.entryLockAt])
+
+  function toggleTeam(teamId: string, requiredPicks: number, tierTeamIds: string[]) {
+    setSelectedTeamIds((current) => {
+      if (current.includes(teamId)) {
+        return current.filter((id) => id !== teamId)
+      }
+
+      const pickedInTier = current.filter((id) => tierTeamIds.includes(id))
+
+      if (pickedInTier.length < requiredPicks) {
+        return [...current, teamId]
+      }
+
+      const [oldestPick] = pickedInTier
+      return [...current.filter((id) => id !== oldestPick), teamId]
+    })
+  }
+
+  async function handleSave() {
+    setError(null)
+    setIsSaving(true)
+
+    try {
+      await saveEntry(selectedTeamIds, goalscorerPickId || null)
+      const nextOverview = await getOverview()
+
+      if (nextOverview !== null) {
+        onOverviewChange(nextOverview)
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'No se ha podido guardar la entrada.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Mi entrada</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {overview.teamTiers.length === 0 ? (
+          <p className="rounded-md border px-3 py-2 text-sm text-muted-foreground">Todavía no hay bombos configurados.</p>
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-2">
+            {overview.teamTiers.map((tier) => {
+            const tierTeamIds = tier.teams.map((team) => team.id)
+            const pickedInTier = selectedTeamIds.filter((id) => tierTeamIds.includes(id)).length
+
+            return (
+              <div key={tier.id} className="space-y-3 rounded-md border p-3">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <p className="font-medium">{tier.name}</p>
+                  <p className={pickedInTier === tier.requiredPicks ? 'text-muted-foreground' : 'text-destructive'}>
+                    {pickedInTier}/{tier.requiredPicks}
+                  </p>
                 </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {tier.teams.map((team) => (
+                    <button
+                      key={team.id}
+                      type="button"
+                      className={`min-h-10 rounded-md border px-3 py-2 text-left text-sm transition ${selectedTeamIds.includes(team.id) ? 'border-primary bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'}`}
+                      disabled={isLocked}
+                      onClick={() => toggleTeam(team.id, tier.requiredPicks, tierTeamIds)}
+                    >
+                      <span className="font-medium">{team.name}</span>
+                      <span className="ml-2 text-xs opacity-75">Grupo {team.groupCode}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )
+            })}
+          </div>
+        )}
+        <div className="space-y-3">
+          <p className="text-sm font-medium">Goleador elegido</p>
+          {overview.eligiblePlayers.length === 0 ? (
+            <p className="rounded-md border px-3 py-2 text-sm text-muted-foreground">Todavía no hay goleadores configurados.</p>
+          ) : (
+            <div className="grid max-h-72 gap-2 overflow-auto rounded-md border p-2 sm:grid-cols-2 lg:grid-cols-3">
+              {overview.eligiblePlayers.map((player) => (
+                <button
+                  key={player.id}
+                  type="button"
+                  className={`min-h-10 rounded-md border px-3 py-2 text-left text-sm transition ${goalscorerPickId === player.id ? 'border-primary bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'}`}
+                  disabled={isLocked}
+                  onClick={() => setGoalscorerPickId(player.id)}
+                >
+                  <span className="block font-medium">{player.name}</span>
+                  <span className="text-xs opacity-75">{player.teamName}</span>
+                </button>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      ))}
-    </section>
+          )}
+        </div>
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <Button type="button" disabled={isLocked || isSaving} onClick={handleSave}>
+          <Save className="size-4" aria-hidden="true" />
+          {isSaving ? 'Guardando...' : 'Guardar entrada'}
+        </Button>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -318,7 +441,7 @@ function Setup({ overview }: { overview: Overview }) {
               <div className="mt-3 flex flex-wrap gap-2">
                 {tier.teams.map((team) => (
                   <span key={team.id} className="rounded-md bg-muted px-2 py-1 text-xs">
-                    {team.fifaCode}
+                    {team.fifaCode} · {team.groupCode}
                   </span>
                 ))}
               </div>

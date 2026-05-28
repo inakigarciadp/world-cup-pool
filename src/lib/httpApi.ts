@@ -26,6 +26,7 @@ export type Overview = {
       id: string
       name: string
       fifaCode: string
+      groupCode: string
     }>
   }>
   eligiblePlayers: Array<{
@@ -49,6 +50,10 @@ export type Overview = {
     currentScore: number
     submittedAt: number | null
   }>
+  currentEntry: {
+    teamPickIds: string[]
+    goalscorerPickId: string | null
+  } | null
 }
 
 export async function login(loginName: string, pin: string) {
@@ -82,6 +87,13 @@ export async function getOverview() {
   }
 
   return (await parseJsonResponse(response)) as Overview
+}
+
+export async function saveEntry(teamPickIds: string[], goalscorerPickId: string | null) {
+  return await request('/api/entry', {
+    method: 'POST',
+    body: JSON.stringify({ teamPickIds, goalscorerPickId }),
+  })
 }
 
 async function request(path: string, init: RequestInit) {

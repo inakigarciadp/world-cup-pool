@@ -13,3 +13,4 @@ Convex agent skills for common tasks can be installed by running
 <!-- convex-ai-end -->
 
 - even though our conversation might be in english, all the UI and UI messages should be in spanish from spain.
+- never start the dev server unless I explicitly tells you. it's probably already running in another terminal/procces.

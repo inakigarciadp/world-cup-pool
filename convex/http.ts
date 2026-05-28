@@ -185,6 +185,35 @@ http.route({
 })
 
 http.route({
+  path: '/api/entry',
+  method: 'POST',
+  handler: httpAction(async (ctx, request) => {
+    const authSecret = getAuthSecret()
+    const accessToken = getCookie(request, ACCESS_COOKIE)
+    const payload = accessToken === null ? null : await verifyAuthToken(accessToken, 'access', authSecret)
+
+    if (payload === null) {
+      return unauthorized(request)
+    }
+
+    const body = await request.json()
+
+    try {
+      const result = await ctx.runMutation(internal.pools.saveEntryForHttp, {
+        poolId: payload.poolId as Id<'pools'>,
+        participantId: payload.participantId as Id<'participants'>,
+        teamPickIds: Array.isArray(body.teamPickIds) ? body.teamPickIds : [],
+        goalscorerPickId: typeof body.goalscorerPickId === 'string' ? body.goalscorerPickId : null,
+      })
+
+      return jsonResponse(result, request)
+    } catch (caught) {
+      return jsonResponse({ error: caught instanceof Error ? caught.message : 'No se ha podido guardar la entrada.' }, request, 400)
+    }
+  }),
+})
+
+http.route({
   path: '/auth/login',
   method: 'OPTIONS',
   handler: httpAction(async (_ctx, request) => optionsResponse(request)),
@@ -201,6 +230,11 @@ http.route({
 })
 http.route({
   path: '/api/overview',
+  method: 'OPTIONS',
+  handler: httpAction(async (_ctx, request) => optionsResponse(request)),
+})
+http.route({
+  path: '/api/entry',
   method: 'OPTIONS',
   handler: httpAction(async (_ctx, request) => optionsResponse(request)),
 })
