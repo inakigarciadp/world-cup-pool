@@ -498,25 +498,28 @@ function EntryEditor({
             <Combobox.Portal>
               <Combobox.Positioner sideOffset={6}>
                 <Combobox.Popup>
-                  <Combobox.Empty>No hay goleadores que coincidan.</Combobox.Empty>
-                  <Combobox.List>
-                    {filteredGoalscorers.map((player) => (
-                      <Combobox.Item key={player.id} value={player.id}>
-                        <span className="text-lg leading-none" aria-hidden="true">
-                          {getFlagEmoji(player.teamFifaCode)}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate font-medium">{player.name}</span>
-                          <span className="block truncate text-xs opacity-75">
-                            {player.teamName} · {player.teamFifaCode} · Grupo {player.groupCode}
+                  {filteredGoalscorers.length === 0 ? (
+                    <Combobox.Empty>No hay goleadores que coincidan.</Combobox.Empty>
+                  ) : (
+                    <Combobox.List>
+                      {filteredGoalscorers.map((player) => (
+                        <Combobox.Item key={player.id} value={player.id}>
+                          <span className="text-lg leading-none" aria-hidden="true">
+                            {getFlagEmoji(player.teamFifaCode)}
                           </span>
-                        </span>
-                        {goalscorerPickId === player.id ? (
-                          <Check className="size-4" aria-hidden="true" />
-                        ) : null}
-                      </Combobox.Item>
-                    ))}
-                  </Combobox.List>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-medium">{player.name}</span>
+                            <span className="block truncate text-xs opacity-75">
+                              {player.teamName} · {player.teamFifaCode} · Grupo {player.groupCode}
+                            </span>
+                          </span>
+                          {goalscorerPickId === player.id ? (
+                            <Check className="size-4" aria-hidden="true" />
+                          ) : null}
+                        </Combobox.Item>
+                      ))}
+                    </Combobox.List>
+                  )}
                 </Combobox.Popup>
               </Combobox.Positioner>
             </Combobox.Portal>
