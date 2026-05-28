@@ -30,15 +30,19 @@ _Avoid_: Bet, ticket, lineup
 
 **Team Tier**:
 A configured group of national teams from which an **Entry** must select a configured number of teams.
-_Avoid_: Pot, category, group
+_Avoid_: Pot, category, group, tournament group
+
+**Tournament Group**:
+An official World Cup group, identified by a letter such as Group A, that contains the national teams scheduled to play each other in the tournament group stage.
+_Avoid_: Team Tier, Bombo
 
 **Team Pick**:
 A national team selected in an **Entry** from a specific **Team Tier**.
 _Avoid_: Squad pick, country pick
 
 **Eligible Player**:
-A football player made available by the **Admin** for selection as a **Goalscorer Pick**.
-_Avoid_: Player option, scorer candidate
+A footballer from an official final World Cup squad who is made available by the **Admin** for selection as a **Goalscorer Pick**.
+_Avoid_: Player, player option, scorer candidate, provisional player
 
 **Goalscorer Pick**:
 The single **Eligible Player** selected in an **Entry** for goalscorer scoring.
@@ -82,8 +86,11 @@ Domain expert: "The Admin can correct it, but Participants cannot edit locked En
 Dev: "How many teams does an Entry choose?"
 Domain expert: "The Pool defines Team Tiers and how many Team Picks are required from each tier."
 
+Dev: "Is Bombo 1 the same thing as Group A?"
+Domain expert: "No. A Team Tier controls selection rules for the Pool, while a Tournament Group is an official World Cup group."
+
 Dev: "Can someone type any goalscorer name?"
-Domain expert: "No. They choose one Goalscorer Pick from the Eligible Players, and the Admin can add missing players before the Entry Lock."
+Domain expert: "No. They choose one Goalscorer Pick from the Eligible Players, and Eligible Players come from official final World Cup squads."
 
 Dev: "Can Participants see other Entries before the World Cup starts?"
 Domain expert: "Yes. Entries are public throughout the Pool, including before the Entry Lock."
