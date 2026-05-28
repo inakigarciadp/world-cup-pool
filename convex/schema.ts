@@ -7,12 +7,7 @@ export default defineSchema({
     slug: v.string(),
     entryLockAt: v.number(),
     adminPin: v.string(),
-    status: v.union(
-      v.literal('setup'),
-      v.literal('open'),
-      v.literal('locked'),
-      v.literal('scoring'),
-    ),
+    status: v.union(v.literal('setup'), v.literal('open'), v.literal('locked'), v.literal('scoring')),
   }).index('by_slug', ['slug']),
 
   participants: defineTable({

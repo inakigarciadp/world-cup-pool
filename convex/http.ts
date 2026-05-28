@@ -29,11 +29,7 @@ http.route({
         slug: typeof body.slug === 'string' ? body.slug : undefined,
       })
     } catch {
-      return jsonResponse(
-        { error: 'El nombre de participante o el PIN no son correctos.' },
-        request,
-        401,
-      )
+      return jsonResponse({ error: 'El nombre de participante o el PIN no son correctos.' }, request, 401)
     }
     const refreshToken = await signAuthToken(
       {
@@ -149,8 +145,7 @@ http.route({
   handler: httpAction(async (ctx, request) => {
     const authSecret = getAuthSecret()
     const refreshToken = getCookie(request, REFRESH_COOKIE)
-    const payload =
-      refreshToken === null ? null : await verifyAuthToken(refreshToken, 'refresh', authSecret)
+    const payload = refreshToken === null ? null : await verifyAuthToken(refreshToken, 'refresh', authSecret)
 
     if (payload?.sessionId) {
       await ctx.runMutation(internal.pools.revokeRefreshSession, {
@@ -168,8 +163,7 @@ http.route({
   handler: httpAction(async (ctx, request) => {
     const authSecret = getAuthSecret()
     const accessToken = getCookie(request, ACCESS_COOKIE)
-    const payload =
-      accessToken === null ? null : await verifyAuthToken(accessToken, 'access', authSecret)
+    const payload = accessToken === null ? null : await verifyAuthToken(accessToken, 'access', authSecret)
 
     if (payload === null) {
       return unauthorized(request, clearAccessCookie())
@@ -196,8 +190,7 @@ http.route({
   handler: httpAction(async (ctx, request) => {
     const authSecret = getAuthSecret()
     const accessToken = getCookie(request, ACCESS_COOKIE)
-    const payload =
-      accessToken === null ? null : await verifyAuthToken(accessToken, 'access', authSecret)
+    const payload = accessToken === null ? null : await verifyAuthToken(accessToken, 'access', authSecret)
 
     if (payload === null) {
       return unauthorized(request, clearAccessCookie())
@@ -215,11 +208,7 @@ http.route({
 
       return jsonResponse(result, request)
     } catch (caught) {
-      return jsonResponse(
-        { error: caught instanceof Error ? caught.message : 'No se ha podido guardar la entrada.' },
-        request,
-        400,
-      )
+      return jsonResponse({ error: caught instanceof Error ? caught.message : 'No se ha podido guardar la entrada.' }, request, 400)
     }
   }),
 })

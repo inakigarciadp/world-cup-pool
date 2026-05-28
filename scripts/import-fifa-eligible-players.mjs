@@ -84,11 +84,7 @@ for (const player of players) {
 }
 
 console.log(`Extracted ${players.length} eligible players from ${byTeam.size} teams.`)
-console.table(
-  [...byTeam.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([teamFifaCode, count]) => ({ teamFifaCode, count })),
-)
+console.table([...byTeam.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([teamFifaCode, count]) => ({ teamFifaCode, count })))
 
 if (options.dryRun) {
   process.exit(0)
@@ -152,9 +148,7 @@ async function fetchOfficialSquadPlayers(limit) {
       idSeason: FIFA_WORLD_CUP_SEASON_ID,
       language: 'en',
     })
-    const squad = await fetchJson(
-      `${FIFA_FDCP_API_BASE_URL}/teams/${teamId}/squad?${params.toString()}`,
-    )
+    const squad = await fetchJson(`${FIFA_FDCP_API_BASE_URL}/teams/${teamId}/squad?${params.toString()}`)
     const players = extractOfficialSquadPlayers(squad, teamFifaCode)
 
     if (players.length > 0) {
@@ -171,19 +165,12 @@ async function fetchWorldCupTeamIds() {
     count: '500',
     idSeason: FIFA_WORLD_CUP_SEASON_ID,
   })
-  const calendar = await fetchJson(
-    `${FIFA_FDCP_API_BASE_URL}/calendar/matches?${params.toString()}`,
-  )
+  const calendar = await fetchJson(`${FIFA_FDCP_API_BASE_URL}/calendar/matches?${params.toString()}`)
   const teamsByCode = new Map()
 
   for (const match of calendar.Results ?? []) {
     for (const side of [match.Home, match.Away]) {
-      const teamFifaCode = (
-        side?.Abbreviation ??
-        side?.IdCountry ??
-        side?.IdAssociation ??
-        ''
-      ).toUpperCase()
+      const teamFifaCode = (side?.Abbreviation ?? side?.IdCountry ?? side?.IdAssociation ?? '').toUpperCase()
 
       if (teamFifaCode && side?.IdTeam) {
         teamsByCode.set(teamFifaCode, side.IdTeam)
@@ -203,9 +190,7 @@ function extractOfficialSquadPlayers(squad, teamFifaCode) {
         localizedDescription(player.KnownName) ??
         localizedDescription(player.ShortName) ??
         localizedDescription(player.Name) ??
-        [localizedDescription(player.FirstName), localizedDescription(player.LastName)]
-          .filter(Boolean)
-          .join(' '),
+        [localizedDescription(player.FirstName), localizedDescription(player.LastName)].filter(Boolean).join(' '),
     )
 
     if (isLikelyPlayerName(name)) {
@@ -223,9 +208,7 @@ async function fetchSquadAnnouncementPlayers(teamCodes) {
 
   const indexPage = await fetchContentPage(FIFA_SQUAD_INDEX_PATH)
   const indexArticle = await fetchArticleSection(indexPage)
-  const links = extractSquadAnnouncementLinks(indexArticle).filter((link) =>
-    teamCodes.has(link.teamFifaCode),
-  )
+  const links = extractSquadAnnouncementLinks(indexArticle).filter((link) => teamCodes.has(link.teamFifaCode))
   const players = []
 
   for (const link of links) {
@@ -254,9 +237,7 @@ async function fetchArticleSection(page) {
   const section = page.sections?.find((section) => section.entryType === 'article')
 
   if (section === undefined) {
-    throw new Error(
-      `No article section found for ${page.relativeUrl ?? page.pageId ?? 'FIFA page'}`,
-    )
+    throw new Error(`No article section found for ${page.relativeUrl ?? page.pageId ?? 'FIFA page'}`)
   }
 
   return await fetchJson(toContentApiUrl(section.entryEndpoint))
@@ -374,20 +355,16 @@ function richTextPlainText(node) {
 }
 
 function splitPlayerNames(value) {
-  return value.split(/\n+/).map(cleanPlayerName).filter(Boolean)
+  return value
+    .split(/\n+/)
+    .map(cleanPlayerName)
+    .filter(Boolean)
 }
 
 function isSquadPositionHeading(value) {
-  return [
-    'goalkeeper',
-    'goalkeepers',
-    'defender',
-    'defenders',
-    'midfielder',
-    'midfielders',
-    'forward',
-    'forwards',
-  ].includes(normalize(value))
+  return ['goalkeeper', 'goalkeepers', 'defender', 'defenders', 'midfielder', 'midfielders', 'forward', 'forwards'].includes(
+    normalize(value),
+  )
 }
 
 function toFifaPagePath(pathOrUrl) {
@@ -433,9 +410,7 @@ function localizedDescription(value) {
   }
 
   if (Array.isArray(value)) {
-    return (
-      value.find((entry) => entry.Locale?.startsWith('en'))?.Description ?? value[0]?.Description
-    )
+    return value.find((entry) => entry.Locale?.startsWith('en'))?.Description ?? value[0]?.Description
   }
 
   return value?.Description

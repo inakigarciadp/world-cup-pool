@@ -39,11 +39,7 @@ export async function verifyPin(pin: string, encodedHash: string) {
   return constantTimeEqual(hash, expectedHash)
 }
 
-export async function signAuthToken(
-  payload: Omit<AuthTokenPayload, 'exp'>,
-  ttlSeconds: number,
-  secret: string,
-) {
+export async function signAuthToken(payload: Omit<AuthTokenPayload, 'exp'>, ttlSeconds: number, secret: string) {
   const exp = Math.floor(Date.now() / 1000) + ttlSeconds
   const header = { alg: 'HS256', typ: 'JWT' }
   const body: AuthTokenPayload = { ...payload, exp }
@@ -67,9 +63,7 @@ export async function verifyAuthToken(token: string, expectedKind: TokenKind, se
     return null
   }
 
-  const payload = JSON.parse(
-    new TextDecoder().decode(base64UrlDecode(encodedBody)),
-  ) as AuthTokenPayload
+  const payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(encodedBody))) as AuthTokenPayload
 
   if (payload.kind !== expectedKind || payload.exp <= Math.floor(Date.now() / 1000)) {
     return null
@@ -83,9 +77,7 @@ export async function hashRefreshToken(token: string, secret: string) {
 }
 
 async function pbkdf2(pin: string, salt: Uint8Array, iterations: number) {
-  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, [
-    'deriveBits',
-  ])
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, ['deriveBits'])
   const bits = await crypto.subtle.deriveBits(
     {
       name: 'PBKDF2',
@@ -117,15 +109,11 @@ function base64UrlEncodeJson(value: unknown) {
 }
 
 function base64UrlEncode(value: Uint8Array) {
-  return btoa(String.fromCharCode(...value))
-    .replaceAll('+', '-')
-    .replaceAll('/', '_')
-    .replaceAll('=', '')
+  return btoa(String.fromCharCode(...value)).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')
 }
 
 function base64UrlDecode(value: string) {
-  const padded =
-    value.replaceAll('-', '+').replaceAll('_', '/') + '='.repeat((4 - (value.length % 4)) % 4)
+  const padded = value.replaceAll('-', '+').replaceAll('_', '/') + '='.repeat((4 - (value.length % 4)) % 4)
   const decoded = atob(padded)
   return Uint8Array.from(decoded, (character) => character.charCodeAt(0))
 }
