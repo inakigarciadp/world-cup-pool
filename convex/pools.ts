@@ -135,7 +135,9 @@ export const getAuthenticatedOverview = internalQuery({
       .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
       .take(500)
 
-    const participantsById = new Map(participants.map((participant) => [participant._id, participant]))
+    const participantsById = new Map(
+      participants.map((participant) => [participant._id, participant]),
+    )
     const tiersById = new Map(tiers.map((tier) => [tier._id, tier]))
     const teamsById = new Map(teams.map((team) => [team._id, team]))
     const teamsByName = new Map(teams.map((team) => [team.name, team]))
@@ -152,7 +154,9 @@ export const getAuthenticatedOverview = internalQuery({
     const entryOverviews: EntryOverview[] = entries.map((entry) => {
       const participant = participantsById.get(entry.participantId)
       const goalscorerPick =
-        entry.goalscorerPickId === null ? null : eligiblePlayersById.get(entry.goalscorerPickId)?.name ?? null
+        entry.goalscorerPickId === null
+          ? null
+          : (eligiblePlayersById.get(entry.goalscorerPickId)?.name ?? null)
       const teamPicks = (picksByEntryId.get(entry._id) ?? [])
         .map((pick) => {
           const tier = tiersById.get(pick.tierId)
@@ -164,7 +168,10 @@ export const getAuthenticatedOverview = internalQuery({
             sortOrder: tier?.sortOrder ?? 999,
           }
         })
-        .sort((left, right) => left.sortOrder - right.sortOrder || left.teamName.localeCompare(right.teamName))
+        .sort(
+          (left, right) =>
+            left.sortOrder - right.sortOrder || left.teamName.localeCompare(right.teamName),
+        )
         .map(({ tierName, teamName }) => ({ tierName, teamName }))
 
       return {
@@ -176,7 +183,8 @@ export const getAuthenticatedOverview = internalQuery({
         submittedAt: entry.submittedAt,
       }
     })
-    const currentEntry = entries.find((entry) => entry.participantId === sessionParticipant._id) ?? null
+    const currentEntry =
+      entries.find((entry) => entry.participantId === sessionParticipant._id) ?? null
 
     return {
       session: {
@@ -224,7 +232,9 @@ export const getAuthenticatedOverview = internalQuery({
         points: bonus.points,
       })),
       leaderboard: entryOverviews.sort(
-        (left, right) => right.currentScore - left.currentScore || left.participantName.localeCompare(right.participantName),
+        (left, right) =>
+          right.currentScore - left.currentScore ||
+          left.participantName.localeCompare(right.participantName),
       ),
       currentEntry:
         currentEntry === null
@@ -260,11 +270,17 @@ export const saveEntryForHttp = internalMutation({
       .query('teamTiers')
       .withIndex('by_poolId_and_sortOrder', (q) => q.eq('poolId', pool._id))
       .take(25)
-    const teams = await Promise.all(args.teamPickIds.map(async (teamId) => await ctx.db.get(teamId)))
+    const teams = await Promise.all(
+      args.teamPickIds.map(async (teamId) => await ctx.db.get(teamId)),
+    )
     const activeGoalscorer =
       args.goalscorerPickId === null ? null : await ctx.db.get(args.goalscorerPickId)
 
-    if (activeGoalscorer === null || activeGoalscorer.poolId !== pool._id || !activeGoalscorer.isActive) {
+    if (
+      activeGoalscorer === null ||
+      activeGoalscorer.poolId !== pool._id ||
+      !activeGoalscorer.isActive
+    ) {
       throw new Error('Elige un goleador valido.')
     }
 
@@ -288,7 +304,9 @@ export const saveEntryForHttp = internalMutation({
 
     const existingEntry = await ctx.db
       .query('entries')
-      .withIndex('by_poolId_and_participantId', (q) => q.eq('poolId', pool._id).eq('participantId', participant._id))
+      .withIndex('by_poolId_and_participantId', (q) =>
+        q.eq('poolId', pool._id).eq('participantId', participant._id),
+      )
       .unique()
     const now = Date.now()
     const entryId =
@@ -359,7 +377,10 @@ export const importEligiblePlayersForAdmin = mutation({
 
     await ensureWorldCupSeedData(ctx, pool._id)
 
-    const teams = await ctx.db.query('teams').withIndex('by_poolId', (q) => q.eq('poolId', pool._id)).take(100)
+    const teams = await ctx.db
+      .query('teams')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(100)
     const teamsByCode = new Map(teams.map((team) => [team.fifaCode.toUpperCase(), team]))
     const importsByTeamCode = new Map<string, EligiblePlayerImport[]>()
     const skippedTeams = new Set<string>()
@@ -377,7 +398,10 @@ export const importEligiblePlayersForAdmin = mutation({
         continue
       }
 
-      importsByTeamCode.set(teamFifaCode, [...(importsByTeamCode.get(teamFifaCode) ?? []), { name, teamFifaCode }])
+      importsByTeamCode.set(teamFifaCode, [
+        ...(importsByTeamCode.get(teamFifaCode) ?? []),
+        { name, teamFifaCode },
+      ])
     }
 
     let inserted = 0
@@ -401,9 +425,12 @@ export const importEligiblePlayersForAdmin = mutation({
         (player) =>
           player.teamFifaCode === team.fifaCode ||
           player.teamId === team._id ||
-          (player.teamFifaCode === undefined && normalizeKey(player.teamName) === normalizeKey(team.name)),
+          (player.teamFifaCode === undefined &&
+            normalizeKey(player.teamName) === normalizeKey(team.name)),
       )
-      const existingByName = new Map(existingForTeam.map((player) => [normalizeKey(player.name), player]))
+      const existingByName = new Map(
+        existingForTeam.map((player) => [normalizeKey(player.name), player]),
+      )
 
       for (const player of teamPlayers) {
         const existing = existingByName.get(normalizeKey(player.name))
@@ -445,7 +472,10 @@ export const importEligiblePlayersForAdmin = mutation({
 
     return {
       teamsFetched: importsByTeamCode.size,
-      playersReceived: [...importsByTeamCode.values()].reduce((total, players) => total + players.length, 0),
+      playersReceived: [...importsByTeamCode.values()].reduce(
+        (total, players) => total + players.length,
+        0,
+      ),
       inserted,
       activated,
       updated,
@@ -474,7 +504,9 @@ export const loginForHttp = internalMutation({
 
     const participant = await ctx.db
       .query('participants')
-      .withIndex('by_poolId_and_loginName', (q) => q.eq('poolId', pool._id).eq('loginName', normalizedLoginName))
+      .withIndex('by_poolId_and_loginName', (q) =>
+        q.eq('poolId', pool._id).eq('loginName', normalizedLoginName),
+      )
       .unique()
 
     if (participant === null || !(await verifyPin(args.pin, participant.pinHash))) {
@@ -578,7 +610,9 @@ export const upsertParticipantsFromCsv = mutation({
       const displayName = user.displayName.trim() || loginName
       const participant = await ctx.db
         .query('participants')
-        .withIndex('by_poolId_and_loginName', (q) => q.eq('poolId', pool._id).eq('loginName', loginName))
+        .withIndex('by_poolId_and_loginName', (q) =>
+          q.eq('poolId', pool._id).eq('loginName', loginName),
+        )
         .unique()
 
       if (participant === null) {
@@ -625,7 +659,10 @@ async function ensureWorldCupSeedData(ctx: MutationCtx, poolId: Id<'pools'>) {
     .query('teamTiers')
     .withIndex('by_poolId_and_sortOrder', (q) => q.eq('poolId', poolId))
     .take(25)
-  const existingTeams = await ctx.db.query('teams').withIndex('by_poolId', (q) => q.eq('poolId', poolId)).take(100)
+  const existingTeams = await ctx.db
+    .query('teams')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .take(100)
   const existingPlayers = await ctx.db
     .query('eligiblePlayers')
     .withIndex('by_poolId', (q) => q.eq('poolId', poolId))

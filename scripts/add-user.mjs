@@ -8,7 +8,10 @@ const PASSWORD_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0
 const PASSWORD_LENGTH = 25
 
 const args = process.argv.slice(2)
-const username = args.find((arg) => !arg.startsWith('--'))?.trim().toLowerCase()
+const username = args
+  .find((arg) => !arg.startsWith('--'))
+  ?.trim()
+  .toLowerCase()
 const isAdmin = args.includes('--admin')
 
 if (!username) {
@@ -17,7 +20,9 @@ if (!username) {
 }
 
 if (!/^[a-z0-9._-]+$/.test(username)) {
-  console.error('Username may only contain lowercase letters, numbers, dots, underscores, and hyphens.')
+  console.error(
+    'Username may only contain lowercase letters, numbers, dots, underscores, and hyphens.',
+  )
   process.exit(1)
 }
 

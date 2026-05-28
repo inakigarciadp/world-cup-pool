@@ -67,27 +67,32 @@ async function readUsers() {
     throw new Error(`Expected header: ${HEADER.join(',')}`)
   }
 
-  return await Promise.all(lines.slice(1).filter(Boolean).map(async (line) => {
-    const row = parseCsvLine(line)
-    const username = row.username.trim().toLowerCase()
-    const displayName = row.displayName.trim() || username
-    const pin = row.pin.trim()
+  return await Promise.all(
+    lines
+      .slice(1)
+      .filter(Boolean)
+      .map(async (line) => {
+        const row = parseCsvLine(line)
+        const username = row.username.trim().toLowerCase()
+        const displayName = row.displayName.trim() || username
+        const pin = row.pin.trim()
 
-    if (!/^[a-z0-9._-]+$/.test(username)) {
-      throw new Error(`Invalid username "${row.username}".`)
-    }
+        if (!/^[a-z0-9._-]+$/.test(username)) {
+          throw new Error(`Invalid username "${row.username}".`)
+        }
 
-    if (pin.length !== 25) {
-      throw new Error(`PIN for "${username}" must be 25 characters.`)
-    }
+        if (pin.length !== 25) {
+          throw new Error(`PIN for "${username}" must be 25 characters.`)
+        }
 
-    return {
-      username,
-      displayName,
-      pinHash: await hashPin(pin),
-      isAdmin: row.isAdmin.trim().toLowerCase() === 'true',
-    }
-  }))
+        return {
+          username,
+          displayName,
+          pinHash: await hashPin(pin),
+          isAdmin: row.isAdmin.trim().toLowerCase() === 'true',
+        }
+      }),
+  )
 }
 
 function parseCsvLine(line) {
@@ -133,7 +138,13 @@ function getFlagValue(flag) {
 
 async function hashPin(pin) {
   const salt = webcrypto.getRandomValues(new Uint8Array(PIN_SALT_BYTES))
-  const key = await webcrypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, ['deriveBits'])
+  const key = await webcrypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(pin),
+    'PBKDF2',
+    false,
+    ['deriveBits'],
+  )
   const bits = await webcrypto.subtle.deriveBits(
     {
       name: 'PBKDF2',
