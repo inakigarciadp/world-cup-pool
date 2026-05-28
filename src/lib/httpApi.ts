@@ -1,4 +1,5 @@
 const API_URL = import.meta.env.VITE_CONVEX_SITE_URL ?? import.meta.env.VITE_CONVEX_URL
+let refreshPromise: Promise<boolean> | null = null
 
 export type Overview = {
   session: {
@@ -70,32 +71,20 @@ export async function logout() {
 }
 
 export async function getOverview() {
-  const response = await fetchApi('/api/overview')
+  const response = await fetchWithRefreshRetry('/api/overview')
 
   if (response.status === 401) {
-    const refreshResponse = await fetchApi('/auth/refresh', { method: 'POST' })
-
-    if (!refreshResponse.ok) {
-      return null
-    }
-
-    const retryResponse = await fetchApi('/api/overview')
-
-    if (retryResponse.status === 401) {
-      return null
-    }
-
-    return (await parseJsonResponse(retryResponse)) as Overview
+    return null
   }
 
   return (await parseJsonResponse(response)) as Overview
 }
 
 export async function saveEntry(teamPickIds: string[], goalscorerPickId: string | null) {
-  return await request('/api/entry', {
+  return await parseJsonResponse(await fetchWithRefreshRetry('/api/entry', {
     method: 'POST',
     body: JSON.stringify({ teamPickIds, goalscorerPickId }),
-  })
+  }))
 }
 
 async function request(path: string, init: RequestInit) {
@@ -111,6 +100,31 @@ async function fetchApi(path: string, init: RequestInit = {}) {
       ...init.headers,
     },
   })
+}
+
+async function fetchWithRefreshRetry(path: string, init: RequestInit = {}) {
+  const response = await fetchApi(path, init)
+
+  if (response.status !== 401) {
+    return response
+  }
+
+  if (!(await refreshSession())) {
+    return response
+  }
+
+  return await fetchApi(path, init)
+}
+
+async function refreshSession() {
+  refreshPromise ??= fetchApi('/auth/refresh', { method: 'POST' })
+    .then((response) => response.ok)
+    .catch(() => false)
+    .finally(() => {
+      refreshPromise = null
+    })
+
+  return await refreshPromise
 }
 
 async function parseJsonResponse(response: Response) {

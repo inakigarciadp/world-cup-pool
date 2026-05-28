@@ -94,7 +94,7 @@ http.route({
     const refreshToken = getCookie(request, REFRESH_COOKIE)
 
     if (refreshToken === null) {
-      return unauthorized(request)
+      return unauthorized(request, clearAccessCookie())
     }
 
     const payload = await verifyAuthToken(refreshToken, 'refresh', authSecret)
@@ -166,7 +166,7 @@ http.route({
     const payload = accessToken === null ? null : await verifyAuthToken(accessToken, 'access', authSecret)
 
     if (payload === null) {
-      return unauthorized(request)
+      return unauthorized(request, clearAccessCookie())
     }
 
     const url = new URL(request.url)
@@ -193,7 +193,7 @@ http.route({
     const payload = accessToken === null ? null : await verifyAuthToken(accessToken, 'access', authSecret)
 
     if (payload === null) {
-      return unauthorized(request)
+      return unauthorized(request, clearAccessCookie())
     }
 
     const body = await request.json()
@@ -260,8 +260,8 @@ function jsonResponse(body: unknown, request: Request, status = 200, cookies: st
   return new Response(JSON.stringify(body), { status, headers })
 }
 
-function unauthorized(request: Request) {
-  return jsonResponse({ error: 'No autorizado.' }, request, 401, clearAuthCookies())
+function unauthorized(request: Request, cookies: string[] = []) {
+  return jsonResponse({ error: 'No autorizado.' }, request, 401, cookies)
 }
 
 function optionsResponse(request: Request) {
@@ -296,6 +296,10 @@ function authCookies(accessToken: string, refreshToken: string) {
 
 function clearAuthCookies() {
   return [serializeCookie(ACCESS_COOKIE, '', 0), serializeCookie(REFRESH_COOKIE, '', 0)]
+}
+
+function clearAccessCookie() {
+  return [serializeCookie(ACCESS_COOKIE, '', 0)]
 }
 
 function serializeCookie(name: string, value: string, maxAge: number) {
