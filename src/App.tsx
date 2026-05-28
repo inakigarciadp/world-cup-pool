@@ -760,11 +760,11 @@ function getFlagEmoji(fifaCode: string) {
   const isoCode = isoByFifaCode[fifaCode] ?? fifaCode
 
   if (isoCode === 'GB-ENG') {
-    return '🏴'
+    return getSubdivisionFlagEmoji('gbeng')
   }
 
   if (isoCode === 'GB-SCT') {
-    return '🏴'
+    return getSubdivisionFlagEmoji('gbsct')
   }
 
   if (!/^[A-Z]{2}$/.test(isoCode)) {
@@ -772,6 +772,14 @@ function getFlagEmoji(fifaCode: string) {
   }
 
   return String.fromCodePoint(...[...isoCode].map((character) => 127397 + character.charCodeAt(0)))
+}
+
+function getSubdivisionFlagEmoji(tag: string) {
+  return String.fromCodePoint(
+    0x1f3f4,
+    ...[...tag].map((character) => 0xe0000 + character.charCodeAt(0)),
+    0xe007f,
+  )
 }
 
 export default App
