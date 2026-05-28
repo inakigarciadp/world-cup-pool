@@ -51,8 +51,12 @@ export default defineSchema({
     poolId: v.id('pools'),
     name: v.string(),
     teamName: v.string(),
+    teamId: v.optional(v.id('teams')),
+    teamFifaCode: v.optional(v.string()),
     isActive: v.boolean(),
-  }).index('by_poolId', ['poolId']),
+  })
+    .index('by_poolId', ['poolId'])
+    .index('by_poolId_and_teamFifaCode', ['poolId', 'teamFifaCode']),
 
   stageBonuses: defineTable({
     poolId: v.id('pools'),

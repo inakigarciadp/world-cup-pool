@@ -33,6 +33,8 @@ export type Overview = {
     id: string
     name: string
     teamName: string
+    teamFifaCode: string
+    groupCode: string
   }>
   stageBonuses: Array<{
     id: string

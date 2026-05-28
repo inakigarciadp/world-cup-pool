@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
-import { CalendarClock, ListChecks, LogOut, Save, Shield, Trophy } from 'lucide-react'
+import { CalendarClock, Check, ListChecks, LogOut, Save, Search, Shield, Trophy } from 'lucide-react'
 import { useMutation } from 'convex/react'
 
 import { api } from '../convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Combobox } from '@/components/ui/combobox'
 import { getOverview, login, logout, saveEntry, type Overview } from '@/lib/httpApi'
 
 type ProtectedRoute = 'leaderboard' | 'entries' | 'setup'
@@ -304,10 +305,18 @@ function Entries({ overview, onOverviewChange }: { overview: Overview; onOvervie
 function EntryEditor({ overview, onOverviewChange }: { overview: Overview; onOverviewChange: (overview: Overview) => void }) {
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>(overview.currentEntry?.teamPickIds ?? [])
   const [goalscorerPickId, setGoalscorerPickId] = useState(overview.currentEntry?.goalscorerPickId ?? '')
+  const [goalscorerSearch, setGoalscorerSearch] = useState('')
+  const [showTournamentGroups, setShowTournamentGroups] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const isLocked = overview.pool.status !== 'open' || overview.pool.entryLockAt <= now
+  const selectedGoalscorer = overview.eligiblePlayers.find((player) => player.id === goalscorerPickId) ?? null
+  const filteredGoalscorers = useMemo(
+    () => filterGoalscorers(overview.eligiblePlayers, goalscorerSearch).slice(0, 80),
+    [goalscorerSearch, overview.eligiblePlayers],
+  )
+  const tournamentGroups = useMemo(() => getTournamentGroups(overview), [overview])
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => setNow(Date.now()), Math.max(overview.pool.entryLockAt - Date.now(), 0))
@@ -358,8 +367,16 @@ function EntryEditor({ overview, onOverviewChange }: { overview: Overview; onOve
         {overview.teamTiers.length === 0 ? (
           <p className="rounded-md border px-3 py-2 text-sm text-muted-foreground">Todavía no hay bombos configurados.</p>
         ) : (
-          <div className="grid gap-4 lg:grid-cols-2">
-            {overview.teamTiers.map((tier) => {
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <Button type="button" variant="outline" onClick={() => setShowTournamentGroups((current) => !current)}>
+                <ListChecks className="size-4" aria-hidden="true" />
+                {showTournamentGroups ? 'Ocultar grupos' : 'Ver grupos'}
+              </Button>
+            </div>
+            {showTournamentGroups ? <TournamentGroups groups={tournamentGroups} /> : null}
+            <div className="grid gap-4 lg:grid-cols-2">
+              {overview.teamTiers.map((tier) => {
             const tierTeamIds = tier.teams.map((team) => team.id)
             const pickedInTier = selectedTeamIds.filter((id) => tierTeamIds.includes(id)).length
 
@@ -376,18 +393,22 @@ function EntryEditor({ overview, onOverviewChange }: { overview: Overview; onOve
                     <button
                       key={team.id}
                       type="button"
-                      className={`min-h-10 rounded-md border px-3 py-2 text-left text-sm transition ${selectedTeamIds.includes(team.id) ? 'border-primary bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'}`}
+                      className={`flex min-h-10 items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition ${selectedTeamIds.includes(team.id) ? 'border-primary bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'}`}
                       disabled={isLocked}
                       onClick={() => toggleTeam(team.id, tier.requiredPicks, tierTeamIds)}
                     >
-                      <span className="font-medium">{team.name}</span>
-                      <span className="ml-2 text-xs opacity-75">Grupo {team.groupCode}</span>
+                      <span className="text-lg leading-none" aria-hidden="true">{getFlagEmoji(team.fifaCode)}</span>
+                      <span className="min-w-0">
+                        <span className="block font-medium">{team.name}</span>
+                        <span className="text-xs opacity-75">Grupo {team.groupCode}</span>
+                      </span>
                     </button>
                   ))}
                 </div>
               </div>
             )
-            })}
+              })}
+            </div>
           </div>
         )}
         <div className="space-y-3">
@@ -395,20 +416,49 @@ function EntryEditor({ overview, onOverviewChange }: { overview: Overview; onOve
           {overview.eligiblePlayers.length === 0 ? (
             <p className="rounded-md border px-3 py-2 text-sm text-muted-foreground">Todavía no hay goleadores configurados.</p>
           ) : (
-            <div className="grid max-h-72 gap-2 overflow-auto rounded-md border p-2 sm:grid-cols-2 lg:grid-cols-3">
-              {overview.eligiblePlayers.map((player) => (
-                <button
-                  key={player.id}
-                  type="button"
-                  className={`min-h-10 rounded-md border px-3 py-2 text-left text-sm transition ${goalscorerPickId === player.id ? 'border-primary bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'}`}
-                  disabled={isLocked}
-                  onClick={() => setGoalscorerPickId(player.id)}
-                >
-                  <span className="block font-medium">{player.name}</span>
-                  <span className="text-xs opacity-75">{player.teamName}</span>
-                </button>
-              ))}
-            </div>
+            <Combobox.Root
+              value={goalscorerPickId || null}
+              onValueChange={(value) => {
+                setGoalscorerPickId(typeof value === 'string' ? value : '')
+                setGoalscorerSearch('')
+              }}
+              inputValue={goalscorerSearch}
+              onInputValueChange={setGoalscorerSearch}
+              disabled={isLocked}
+            >
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                <Combobox.Input
+                  className="pl-9"
+                  placeholder={selectedGoalscorer ? `${selectedGoalscorer.name} · ${selectedGoalscorer.teamName}` : 'Buscar goleador o selección'}
+                />
+              </div>
+              <Combobox.Portal>
+                <Combobox.Positioner sideOffset={6}>
+                  <Combobox.Popup>
+                    <Combobox.Empty>No hay goleadores que coincidan.</Combobox.Empty>
+                    <Combobox.List>
+                      {filteredGoalscorers.map((player) => (
+                        <Combobox.Item key={player.id} value={player.id}>
+                          <span className="text-lg leading-none" aria-hidden="true">{getFlagEmoji(player.teamFifaCode)}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-medium">{player.name}</span>
+                            <span className="block truncate text-xs opacity-75">{player.teamName} · {player.teamFifaCode} · Grupo {player.groupCode}</span>
+                          </span>
+                          {goalscorerPickId === player.id ? <Check className="size-4" aria-hidden="true" /> : null}
+                        </Combobox.Item>
+                      ))}
+                    </Combobox.List>
+                  </Combobox.Popup>
+                </Combobox.Positioner>
+              </Combobox.Portal>
+              {selectedGoalscorer ? (
+                <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span className="text-lg leading-none" aria-hidden="true">{getFlagEmoji(selectedGoalscorer.teamFifaCode)}</span>
+                  Seleccionado: <span className="font-medium text-foreground">{selectedGoalscorer.name}</span>
+                </p>
+              ) : null}
+            </Combobox.Root>
           )}
         </div>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -466,6 +516,29 @@ function Setup({ overview }: { overview: Overview }) {
   )
 }
 
+function TournamentGroups({ groups }: { groups: ReturnType<typeof getTournamentGroups> }) {
+  return (
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      {groups.map((group) => (
+        <div key={group.groupCode} className="rounded-md border p-3 text-sm">
+          <p className="font-medium">Grupo {group.groupCode}</p>
+          <div className="mt-3 space-y-2">
+            {group.teams.map((team) => (
+              <div key={team.id} className="flex items-center justify-between gap-3">
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="text-lg leading-none" aria-hidden="true">{getFlagEmoji(team.fifaCode)}</span>
+                  <span className="truncate font-medium">{team.name}</span>
+                </span>
+                <span className="shrink-0 text-xs text-muted-foreground">{team.tierName}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function Metric({ label, value }: { label: string; value: number }) {
   return (
     <Card size="sm">
@@ -491,6 +564,131 @@ function getPoolStatusLabel(status: Overview['pool']['status']) {
   }
 
   return labels[status]
+}
+
+function getTournamentGroups(overview: Overview) {
+  const groups = new Map<string, Array<Overview['teamTiers'][number]['teams'][number] & { tierName: string }>>()
+
+  for (const tier of overview.teamTiers) {
+    for (const team of tier.teams) {
+      const groupCode = team.groupCode || '?'
+      groups.set(groupCode, [...(groups.get(groupCode) ?? []), { ...team, tierName: tier.name }])
+    }
+  }
+
+  return [...groups.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([groupCode, teams]) => ({
+      groupCode,
+      teams: teams.sort((left, right) => left.name.localeCompare(right.name)),
+    }))
+}
+
+function filterGoalscorers(players: Overview['eligiblePlayers'], search: string) {
+  const tokens = normalizeSearch(search).split(' ').filter(Boolean)
+
+  if (tokens.length === 0) {
+    return players
+  }
+
+  return players.filter((player) => {
+    const searchable = normalizeSearch(
+      [player.name, player.teamName, player.teamFifaCode, getFifaCodeAliases(player.teamFifaCode)].join(' '),
+    )
+    return tokens.every((token) => searchable.includes(token))
+  })
+}
+
+function normalizeSearch(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function getFifaCodeAliases(fifaCode: string) {
+  const aliases: Record<string, string> = {
+    ENG: 'ing inglaterra england',
+    GER: 'ale alemania germany',
+    KOR: 'cor corea korea',
+    NED: 'hol paises bajos netherlands holland',
+    NOR: 'nor noruega norway',
+    RSA: 'sud sudafrica south africa',
+    SUI: 'sui suiza switzerland',
+    USA: 'eeuu estados unidos united states',
+  }
+
+  return aliases[fifaCode] ?? ''
+}
+
+function getFlagEmoji(fifaCode: string) {
+  const isoByFifaCode: Record<string, string> = {
+    ALG: 'DZ',
+    ARG: 'AR',
+    AUS: 'AU',
+    AUT: 'AT',
+    BEL: 'BE',
+    BIH: 'BA',
+    BRA: 'BR',
+    CAN: 'CA',
+    CIV: 'CI',
+    COD: 'CD',
+    COL: 'CO',
+    CPV: 'CV',
+    CRO: 'HR',
+    CUW: 'CW',
+    CZE: 'CZ',
+    ECU: 'EC',
+    EGY: 'EG',
+    ENG: 'GB-ENG',
+    ESP: 'ES',
+    FRA: 'FR',
+    GER: 'DE',
+    GHA: 'GH',
+    HAI: 'HT',
+    IRN: 'IR',
+    IRQ: 'IQ',
+    JOR: 'JO',
+    JPN: 'JP',
+    KOR: 'KR',
+    KSA: 'SA',
+    MAR: 'MA',
+    MEX: 'MX',
+    NED: 'NL',
+    NOR: 'NO',
+    NZL: 'NZ',
+    PAN: 'PA',
+    PAR: 'PY',
+    POR: 'PT',
+    QAT: 'QA',
+    RSA: 'ZA',
+    SCO: 'GB-SCT',
+    SEN: 'SN',
+    SUI: 'CH',
+    SWE: 'SE',
+    TUN: 'TN',
+    TUR: 'TR',
+    URU: 'UY',
+    USA: 'US',
+    UZB: 'UZ',
+  }
+  const isoCode = isoByFifaCode[fifaCode] ?? fifaCode
+
+  if (isoCode === 'GB-ENG') {
+    return '🏴'
+  }
+
+  if (isoCode === 'GB-SCT') {
+    return '🏴'
+  }
+
+  if (!/^[A-Z]{2}$/.test(isoCode)) {
+    return '🏳'
+  }
+
+  return String.fromCodePoint(...[...isoCode].map((character) => 127397 + character.charCodeAt(0)))
 }
 
 export default App

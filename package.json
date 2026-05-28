@@ -9,6 +9,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "players:import:fifa": "node scripts/import-fifa-eligible-players.mjs",
     "users:add": "node scripts/add-user.mjs",
     "users:sync:dev": "node scripts/sync-users-to-convex.mjs --deployment dev",
     "users:sync:prod": "node scripts/sync-users-to-convex.mjs --deployment prod"

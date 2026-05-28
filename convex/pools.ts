@@ -20,6 +20,11 @@ type EntryOverview = {
   submittedAt: number | null
 }
 
+type EligiblePlayerImport = {
+  name: string
+  teamFifaCode: string
+}
+
 const teamSeed = [
   { name: 'México', fifaCode: 'MEX', groupCode: 'A', tierOrder: 1 },
   { name: 'Sudáfrica', fifaCode: 'RSA', groupCode: 'A', tierOrder: 3 },
@@ -160,6 +165,8 @@ export const getAuthenticatedOverview = internalQuery({
     const participantsById = new Map(participants.map((participant) => [participant._id, participant]))
     const tiersById = new Map(tiers.map((tier) => [tier._id, tier]))
     const teamsById = new Map(teams.map((team) => [team._id, team]))
+    const teamsByName = new Map(teams.map((team) => [team.name, team]))
+    const teamsByCode = new Map(teams.map((team) => [team.fifaCode, team]))
     const eligiblePlayersById = new Map(eligiblePlayers.map((player) => [player._id, player]))
     const picksByEntryId = new Map<Id<'entries'>, Doc<'entryTeamPicks'>[]>()
 
@@ -234,9 +241,9 @@ export const getAuthenticatedOverview = internalQuery({
         .filter((player) => player.isActive)
         .sort((left, right) => left.name.localeCompare(right.name))
         .map((player) => ({
+          ...getEligiblePlayerTeamFields(player, teamsById, teamsByName, teamsByCode),
           id: player._id,
           name: player.name,
-          teamName: player.teamName,
         })),
       stageBonuses: stageBonuses.map((bonus) => ({
         id: bonus._id,
@@ -354,6 +361,124 @@ export const saveEntryForHttp = internalMutation({
     }
 
     return { entryId }
+  },
+})
+
+export const importEligiblePlayersForAdmin = mutation({
+  args: {
+    slug: v.optional(v.string()),
+    players: v.array(
+      v.object({
+        name: v.string(),
+        teamFifaCode: v.string(),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const pool = await ctx.db
+      .query('pools')
+      .withIndex('by_slug', (q) => q.eq('slug', args.slug ?? DEMO_SLUG))
+      .unique()
+
+    if (pool === null) {
+      throw new Error('No se ha encontrado la porra.')
+    }
+
+    await ensureWorldCupSeedData(ctx, pool._id)
+
+    const teams = await ctx.db.query('teams').withIndex('by_poolId', (q) => q.eq('poolId', pool._id)).take(100)
+    const teamsByCode = new Map(teams.map((team) => [team.fifaCode.toUpperCase(), team]))
+    const importsByTeamCode = new Map<string, EligiblePlayerImport[]>()
+    const skippedTeams = new Set<string>()
+
+    for (const player of args.players) {
+      const name = player.name.trim()
+      const teamFifaCode = player.teamFifaCode.trim().toUpperCase()
+
+      if (!name || !teamFifaCode) {
+        continue
+      }
+
+      if (!teamsByCode.has(teamFifaCode)) {
+        skippedTeams.add(teamFifaCode)
+        continue
+      }
+
+      importsByTeamCode.set(teamFifaCode, [...(importsByTeamCode.get(teamFifaCode) ?? []), { name, teamFifaCode }])
+    }
+
+    let inserted = 0
+    let activated = 0
+    let updated = 0
+    let deactivated = 0
+    const allExistingPlayers = await ctx.db
+      .query('eligiblePlayers')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(1000)
+
+    for (const [teamFifaCode, teamPlayers] of importsByTeamCode) {
+      const team = teamsByCode.get(teamFifaCode)
+
+      if (team === undefined) {
+        continue
+      }
+
+      const fetchedNames = new Set(teamPlayers.map((player) => normalizeKey(player.name)))
+      const existingForTeam = allExistingPlayers.filter(
+        (player) =>
+          player.teamFifaCode === team.fifaCode ||
+          player.teamId === team._id ||
+          (player.teamFifaCode === undefined && normalizeKey(player.teamName) === normalizeKey(team.name)),
+      )
+      const existingByName = new Map(existingForTeam.map((player) => [normalizeKey(player.name), player]))
+
+      for (const player of teamPlayers) {
+        const existing = existingByName.get(normalizeKey(player.name))
+
+        if (existing === undefined) {
+          await ctx.db.insert('eligiblePlayers', {
+            poolId: pool._id,
+            name: player.name,
+            teamName: team.name,
+            teamId: team._id,
+            teamFifaCode: team.fifaCode,
+            isActive: true,
+          })
+          inserted += 1
+          continue
+        }
+
+        await ctx.db.patch(existing._id, {
+          name: player.name,
+          teamName: team.name,
+          teamId: team._id,
+          teamFifaCode: team.fifaCode,
+          isActive: true,
+        })
+        if (!existing.isActive) {
+          activated += 1
+        } else {
+          updated += 1
+        }
+      }
+
+      for (const existing of existingForTeam) {
+        if (existing.isActive && !fetchedNames.has(normalizeKey(existing.name))) {
+          await ctx.db.patch(existing._id, { isActive: false })
+          deactivated += 1
+        }
+      }
+    }
+
+    return {
+      teamsFetched: importsByTeamCode.size,
+      playersReceived: [...importsByTeamCode.values()].reduce((total, players) => total + players.length, 0),
+      inserted,
+      activated,
+      updated,
+      deactivated,
+      skippedTeams: [...skippedTeams].sort(),
+    }
   },
 })
 
@@ -592,8 +717,10 @@ async function insertEligiblePlayer(
   poolId: Id<'pools'>,
   name: string,
   teamName: string,
+  teamId: Id<'teams'>,
+  teamFifaCode: string,
 ) {
-  return await ctx.db.insert('eligiblePlayers', { poolId, name, teamName, isActive: true })
+  return await ctx.db.insert('eligiblePlayers', { poolId, name, teamName, teamId, teamFifaCode, isActive: true })
 }
 
 async function ensureWorldCupSeedData(ctx: MutationCtx, poolId: Id<'pools'>) {
@@ -609,6 +736,7 @@ async function ensureWorldCupSeedData(ctx: MutationCtx, poolId: Id<'pools'>) {
   const tiersByOrder = new Map(existingTiers.map((tier) => [tier.sortOrder, tier._id]))
   const teamsByCode = new Map(existingTeams.map((team) => [team.fifaCode, team._id]))
   const teamsByName = new Map(existingTeams.map((team) => [team.name, team._id]))
+  const teamMetaByName = new Map(existingTeams.map((team) => [team.name, { id: team._id, fifaCode: team.fifaCode }]))
   const playersByName = new Map(existingPlayers.map((player) => [player.name, player._id]))
 
   for (const tier of tierSeed) {
@@ -644,6 +772,7 @@ async function ensureWorldCupSeedData(ctx: MutationCtx, poolId: Id<'pools'>) {
       const teamId = await insertTeam(ctx, poolId, tierId, team.name, team.fifaCode, team.groupCode)
       teamsByCode.set(team.fifaCode, teamId)
       teamsByName.set(team.name, teamId)
+      teamMetaByName.set(team.name, { id: teamId, fifaCode: team.fifaCode })
     } else {
       await ctx.db.patch(existingId, {
         name: team.name,
@@ -652,16 +781,22 @@ async function ensureWorldCupSeedData(ctx: MutationCtx, poolId: Id<'pools'>) {
         groupCode: team.groupCode,
       })
       teamsByName.set(team.name, existingId)
+      teamMetaByName.set(team.name, { id: existingId, fifaCode: team.fifaCode })
     }
   }
 
   for (const [name, teamName] of eligiblePlayerSeed) {
     const existingPlayerId = playersByName.get(name)
+    const team = teamMetaByName.get(teamName)
+
+    if (team === undefined) {
+      continue
+    }
 
     if (existingPlayerId === undefined) {
-      playersByName.set(name, await insertEligiblePlayer(ctx, poolId, name, teamName))
+      playersByName.set(name, await insertEligiblePlayer(ctx, poolId, name, teamName, team.id, team.fifaCode))
     } else {
-      await ctx.db.patch(existingPlayerId, { teamName, isActive: true })
+      await ctx.db.patch(existingPlayerId, { teamName, teamId: team.id, teamFifaCode: team.fifaCode, isActive: true })
     }
   }
 
@@ -771,4 +906,31 @@ async function getOrCreatePool(ctx: MutationCtx, slug: string) {
   await ensureWorldCupSeedData(ctx, createdPool._id)
 
   return createdPool
+}
+
+function getEligiblePlayerTeamFields(
+  player: Doc<'eligiblePlayers'>,
+  teamsById: Map<Id<'teams'>, Doc<'teams'>>,
+  teamsByName: Map<string, Doc<'teams'>>,
+  teamsByCode: Map<string, Doc<'teams'>>,
+) {
+  const team =
+    (player.teamId === undefined ? undefined : teamsById.get(player.teamId)) ??
+    (player.teamFifaCode === undefined ? undefined : teamsByCode.get(player.teamFifaCode)) ??
+    teamsByName.get(player.teamName)
+
+  return {
+    teamName: team?.name ?? player.teamName,
+    teamFifaCode: team?.fifaCode ?? player.teamFifaCode ?? '',
+    groupCode: team?.groupCode ?? '?',
+  }
+}
+
+function normalizeKey(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
 }
