@@ -2,8 +2,13 @@
 import { spawnSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 
-const FIFA_SQUAD_INDEX_URL =
-  'https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/articles/all-world-cup-squad-announcements'
+const FIFA_WEB_ORIGIN = 'https://www.fifa.com'
+const FIFA_CONTENT_API_BASE_URL = 'https://cxm-api.fifa.com/fifaplusweb/api'
+const FIFA_FDCP_API_BASE_URL = 'https://api.fifa.com/api/v3'
+const FIFA_WORLD_CUP_COMPETITION_ID = '17'
+const FIFA_WORLD_CUP_SEASON_ID = '285023'
+const FIFA_SQUAD_INDEX_PATH =
+  '/en/tournaments/mens/worldcup/canadamexicousa2026/articles/all-world-cup-squad-announcements'
 
 const teams = [
   ['MEX', ['mexico', 'méxico']],
@@ -24,7 +29,7 @@ const teams = [
   ['TUR', ['turkiye', 'turkey', 'turquía', 'turquia']],
   ['GER', ['germany', 'alemania']],
   ['CUW', ['curacao', 'curaçao', 'curazao']],
-  ['CIV', ['cote-divoire', 'ivory-coast', 'costa-de-marfil']],
+  ['CIV', ['cote-divoire', 'cote-d-ivoire', 'ivory-coast', 'costa-de-marfil']],
   ['ECU', ['ecuador']],
   ['NED', ['netherlands', 'paises-bajos', 'países-bajos']],
   ['JPN', ['japan', 'japón', 'japon']],
@@ -58,6 +63,13 @@ const teams = [
 
 const options = parseArgs(process.argv.slice(2))
 
+if (!options.dryRun && options.deployment !== 'dev' && options.deployment !== 'prod') {
+  console.error('Usage: pnpm players:import:fifa:dev OR pnpm players:import:fifa:prod')
+  console.error('Optional: -- --slug <pool-slug>')
+  console.error('Dry run: pnpm players:import:fifa')
+  process.exit(1)
+}
+
 const players = options.input
   ? JSON.parse(await readFile(options.input, 'utf8'))
   : await fetchFifaPlayers(options.limit)
@@ -82,47 +94,160 @@ const args = {
   slug: options.slug,
   players,
 }
-const convexArgs = ['convex', 'run', 'pools:importEligiblePlayersForAdmin', '--args', JSON.stringify(args)]
+const convexArgs = [
+  'exec',
+  'convex',
+  'run',
+  'pools:importEligiblePlayersForAdmin',
+  JSON.stringify(args),
+  '--deployment',
+  options.deployment,
+  '--push',
+]
 
-if (options.deployment) {
-  convexArgs.push('--deployment', options.deployment)
-}
-
-const result = spawnSync('npx', convexArgs, { stdio: 'inherit' })
+const result = spawnSync('pnpm', convexArgs, { stdio: 'inherit' })
 process.exit(result.status ?? 1)
 
 async function fetchFifaPlayers(limit) {
-  const indexHtml = await fetchText(FIFA_SQUAD_INDEX_URL)
-  const articleUrls = extractArticleUrls(indexHtml)
-  const selectedUrls = typeof limit === 'number' ? articleUrls.slice(0, limit) : articleUrls
-  const players = []
+  const officialPlayersByTeamCode = await fetchOfficialSquadPlayers(limit)
+  const missingTeamCodes = new Set(selectedTeams(limit).map(([teamFifaCode]) => teamFifaCode))
 
-  for (const url of selectedUrls) {
-    const teamFifaCode = inferTeamFifaCode(url)
+  for (const teamFifaCode of officialPlayersByTeamCode.keys()) {
+    missingTeamCodes.delete(teamFifaCode)
+  }
 
-    if (teamFifaCode === null) {
-      continue
-    }
+  if (missingTeamCodes.size > 0) {
+    console.warn(
+      `FIFA squad endpoint had no players for ${missingTeamCodes.size} teams; falling back to squad announcement articles.`,
+    )
+  }
 
-    try {
-      const html = await fetchText(url)
-      const names = extractPlayerNames(html)
+  const players = [...officialPlayersByTeamCode.values()].flat()
+  const announcementPlayers = await fetchSquadAnnouncementPlayers(missingTeamCodes)
 
-      for (const name of names) {
-        players.push({ name, teamFifaCode })
-      }
-    } catch (error) {
-      console.warn(`Skipped ${url}: ${error instanceof Error ? error.message : String(error)}`)
-    }
+  for (const player of announcementPlayers) {
+    players.push(player)
   }
 
   return uniquePlayers(players)
 }
 
-async function fetchText(url) {
+async function fetchOfficialSquadPlayers(limit) {
+  const teamIdsByCode = await fetchWorldCupTeamIds()
+  const playersByTeamCode = new Map()
+
+  for (const [teamFifaCode] of selectedTeams(limit)) {
+    const teamId = teamIdsByCode.get(teamFifaCode)
+
+    if (teamId === undefined) {
+      continue
+    }
+
+    const params = new URLSearchParams({
+      idCompetition: FIFA_WORLD_CUP_COMPETITION_ID,
+      idSeason: FIFA_WORLD_CUP_SEASON_ID,
+      language: 'en',
+    })
+    const squad = await fetchJson(`${FIFA_FDCP_API_BASE_URL}/teams/${teamId}/squad?${params.toString()}`)
+    const players = extractOfficialSquadPlayers(squad, teamFifaCode)
+
+    if (players.length > 0) {
+      playersByTeamCode.set(teamFifaCode, players)
+    }
+  }
+
+  return playersByTeamCode
+}
+
+async function fetchWorldCupTeamIds() {
+  const params = new URLSearchParams({
+    language: 'en',
+    count: '500',
+    idSeason: FIFA_WORLD_CUP_SEASON_ID,
+  })
+  const calendar = await fetchJson(`${FIFA_FDCP_API_BASE_URL}/calendar/matches?${params.toString()}`)
+  const teamsByCode = new Map()
+
+  for (const match of calendar.Results ?? []) {
+    for (const side of [match.Home, match.Away]) {
+      const teamFifaCode = (side?.Abbreviation ?? side?.IdCountry ?? side?.IdAssociation ?? '').toUpperCase()
+
+      if (teamFifaCode && side?.IdTeam) {
+        teamsByCode.set(teamFifaCode, side.IdTeam)
+      }
+    }
+  }
+
+  return teamsByCode
+}
+
+function extractOfficialSquadPlayers(squad, teamFifaCode) {
+  const players = []
+
+  for (const player of squad?.Players ?? []) {
+    const name = cleanPlayerName(
+      localizedDescription(player.DisplayName) ??
+        localizedDescription(player.KnownName) ??
+        localizedDescription(player.ShortName) ??
+        localizedDescription(player.Name) ??
+        [localizedDescription(player.FirstName), localizedDescription(player.LastName)].filter(Boolean).join(' '),
+    )
+
+    if (isLikelyPlayerName(name)) {
+      players.push({ name, teamFifaCode })
+    }
+  }
+
+  return players
+}
+
+async function fetchSquadAnnouncementPlayers(teamCodes) {
+  if (teamCodes.size === 0) {
+    return []
+  }
+
+  const indexPage = await fetchContentPage(FIFA_SQUAD_INDEX_PATH)
+  const indexArticle = await fetchArticleSection(indexPage)
+  const links = extractSquadAnnouncementLinks(indexArticle).filter((link) => teamCodes.has(link.teamFifaCode))
+  const players = []
+
+  for (const link of links) {
+    try {
+      const page = await fetchContentPage(link.uri)
+      const article = await fetchArticleSection(page)
+      const names = extractPlayerNamesFromArticle(article)
+
+      for (const name of names) {
+        players.push({ name, teamFifaCode: link.teamFifaCode })
+      }
+    } catch (error) {
+      console.warn(`Skipped ${link.uri}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  return players
+}
+
+async function fetchContentPage(pathOrUrl) {
+  const path = toFifaPagePath(pathOrUrl)
+  return await fetchJson(`${FIFA_CONTENT_API_BASE_URL}/pages${path}`)
+}
+
+async function fetchArticleSection(page) {
+  const section = page.sections?.find((section) => section.entryType === 'article')
+
+  if (section === undefined) {
+    throw new Error(`No article section found for ${page.relativeUrl ?? page.pageId ?? 'FIFA page'}`)
+  }
+
+  return await fetchJson(toContentApiUrl(section.entryEndpoint))
+}
+
+async function fetchJson(url) {
   const response = await fetch(url, {
     headers: {
-      accept: 'text/html,application/xhtml+xml',
+      accept: 'application/json,text/plain,*/*',
+      origin: FIFA_WEB_ORIGIN,
       'user-agent': 'world-cup-pool-admin-import/1.0',
     },
   })
@@ -131,26 +256,7 @@ async function fetchText(url) {
     throw new Error(`${response.status} ${response.statusText}`)
   }
 
-  return await response.text()
-}
-
-function extractArticleUrls(html) {
-  const urls = new Set()
-  const hrefPattern = /href=["']([^"']*squad-announcement[^"']*)["']/gi
-  let match
-
-  while ((match = hrefPattern.exec(html)) !== null) {
-    const href = match[1].replace(/\\u002F/g, '/')
-    urls.add(new URL(href, 'https://www.fifa.com').toString())
-  }
-
-  if (urls.size > 0) {
-    return [...urls].sort()
-  }
-
-  return teams.flatMap(([, aliases]) =>
-    aliases.slice(0, 2).map((alias) => new URL(`${alias}-squad-announcement`, FIFA_SQUAD_INDEX_URL.replace('all-world-cup-squad-announcements', '')).toString()),
-  )
+  return await response.json()
 }
 
 function inferTeamFifaCode(url) {
@@ -165,36 +271,149 @@ function inferTeamFifaCode(url) {
   return null
 }
 
-function extractPlayerNames(html) {
-  const decoded = html
-    .replace(/\\u002F/g, '/')
-    .replace(/\\"/g, '"')
-    .replace(/&amp;/g, '&')
-    .replace(/&#x27;/g, "'")
-  const names = new Set()
-  const jsonNamePattern = /"(?:displayName|fullName|name|title)"\s*:\s*"([^"]{3,80})"/g
-  const textNamePattern = />\s*([A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'’.-]+(?:\s+[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'’.-]+){1,4})\s*</g
-  let match
+function extractSquadAnnouncementLinks(article) {
+  const links = []
 
-  while ((match = jsonNamePattern.exec(decoded)) !== null) {
-    addName(names, match[1])
+  for (const link of collectHyperlinks(article.richtext)) {
+    if (!isSquadAnnouncementLink(link)) {
+      continue
+    }
+
+    const teamFifaCode =
+      inferTeamFifaCode(link.text) ?? inferTeamFifaCode(link.uri.replace('canadamexicousa2026', ''))
+
+    if (teamFifaCode === null || links.some((existing) => existing.teamFifaCode === teamFifaCode)) {
+      continue
+    }
+
+    links.push({ ...link, teamFifaCode })
   }
 
-  while ((match = textNamePattern.exec(decoded)) !== null) {
-    addName(names, match[1])
-  }
-
-  return [...names].sort((left, right) => left.localeCompare(right))
+  return links
 }
 
-function addName(names, rawName) {
-  const name = rawName.replace(/\\n/g, ' ').replace(/\s+/g, ' ').trim()
-
-  if (!isLikelyPlayerName(name)) {
-    return
+function collectHyperlinks(node, links = []) {
+  if (node?.nodeType === 'hyperlink') {
+    links.push({
+      uri: node.data?.uri ?? '',
+      text: richTextPlainText(node),
+    })
   }
 
-  names.add(name)
+  for (const child of node?.content ?? []) {
+    collectHyperlinks(child, links)
+  }
+
+  return links
+}
+
+function isSquadAnnouncementLink(link) {
+  return (
+    normalize(link.uri).includes('articles') &&
+    normalize(`${link.uri} ${link.text}`).includes('squad') &&
+    !normalize(link.uri).includes('all-world-cup-squad-announcements')
+  )
+}
+
+function extractPlayerNamesFromArticle(article) {
+  const names = []
+  let readingSquadSection = false
+
+  for (const node of article.richtext?.content ?? []) {
+    const text = richTextPlainText(node)
+
+    if (node.nodeType === 'hr') {
+      readingSquadSection = false
+      continue
+    }
+
+    if (node.nodeType?.startsWith('heading-')) {
+      readingSquadSection = isSquadPositionHeading(text)
+      continue
+    }
+
+    if (!readingSquadSection) {
+      continue
+    }
+
+    for (const name of splitPlayerNames(text)) {
+      if (isLikelyPlayerName(name)) {
+        names.push(name)
+      }
+    }
+  }
+
+  return [...new Set(names)].sort((left, right) => left.localeCompare(right))
+}
+
+function richTextPlainText(node) {
+  if (node?.nodeType === 'text') {
+    return node.value ?? ''
+  }
+
+  return (node?.content ?? []).map(richTextPlainText).join('')
+}
+
+function splitPlayerNames(value) {
+  return value
+    .split(/\n+/)
+    .map(cleanPlayerName)
+    .filter(Boolean)
+}
+
+function isSquadPositionHeading(value) {
+  return ['goalkeeper', 'goalkeepers', 'defender', 'defenders', 'midfielder', 'midfielders', 'forward', 'forwards'].includes(
+    normalize(value),
+  )
+}
+
+function toFifaPagePath(pathOrUrl) {
+  if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
+    return new URL(pathOrUrl).pathname
+  }
+
+  if (pathOrUrl.startsWith('fifa.com/')) {
+    return new URL(`https://${pathOrUrl}`).pathname
+  }
+
+  if (pathOrUrl.startsWith('/')) {
+    return pathOrUrl
+  }
+
+  return `/${pathOrUrl}`
+}
+
+function toContentApiUrl(endpoint) {
+  if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
+    return endpoint
+  }
+
+  if (endpoint.startsWith('/')) {
+    return `${FIFA_CONTENT_API_BASE_URL}${endpoint}`
+  }
+
+  return `${FIFA_CONTENT_API_BASE_URL}/${endpoint}`
+}
+
+function cleanPlayerName(rawName) {
+  return String(rawName ?? '')
+    .replace(/\\n/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^\d+[.)]\s*/, '')
+    .replace(/\s+\([^)]*\)$/, '')
+    .trim()
+}
+
+function localizedDescription(value) {
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (Array.isArray(value)) {
+    return value.find((entry) => entry.Locale?.startsWith('en'))?.Description ?? value[0]?.Description
+  }
+
+  return value?.Description
 }
 
 function isLikelyPlayerName(name) {
@@ -213,8 +432,10 @@ function isLikelyPlayerName(name) {
   ]
 
   return (
+    name.length >= 3 &&
+    name.length <= 80 &&
     !rejected.some((value) => normalize(name).includes(normalize(value))) &&
-    /^[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'’.-]+(?:\s+[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'’.-]+){1,4}$/.test(name)
+    /^[A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ'’.\-\s]+$/.test(name)
   )
 }
 
@@ -268,12 +489,17 @@ function parseArgs(argv) {
   return parsed
 }
 
+function selectedTeams(limit) {
+  return typeof limit === 'number' ? teams.slice(0, limit) : teams
+}
+
 function normalize(value) {
   return value
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
 }
 
 function fail(message) {

@@ -147,7 +147,7 @@ export const getAuthenticatedOverview = internalQuery({
     const eligiblePlayers = await ctx.db
       .query('eligiblePlayers')
       .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(200)
+      .take(1500)
     const stageBonuses = await ctx.db
       .query('stageBonuses')
       .withIndex('by_poolId_and_sortOrder', (q) => q.eq('poolId', pool._id))
@@ -414,7 +414,7 @@ export const importEligiblePlayersForAdmin = mutation({
     const allExistingPlayers = await ctx.db
       .query('eligiblePlayers')
       .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(1000)
+      .take(2000)
 
     for (const [teamFifaCode, teamPlayers] of importsByTeamCode) {
       const team = teamsByCode.get(teamFifaCode)
@@ -732,7 +732,7 @@ async function ensureWorldCupSeedData(ctx: MutationCtx, poolId: Id<'pools'>) {
   const existingPlayers = await ctx.db
     .query('eligiblePlayers')
     .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
-    .take(200)
+    .take(2000)
   const tiersByOrder = new Map(existingTiers.map((tier) => [tier.sortOrder, tier._id]))
   const teamsByCode = new Map(existingTeams.map((team) => [team.fifaCode, team._id]))
   const teamsByName = new Map(existingTeams.map((team) => [team.name, team._id]))
