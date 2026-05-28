@@ -3,7 +3,7 @@ import { v } from 'convex/values'
 import { internalMutation, internalQuery, mutation } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx } from './_generated/server'
-import { hashPin, verifyPin } from './authCrypto'
+import { verifyPin } from './authCrypto'
 
 const DEMO_SLUG = 'world-cup-2026'
 const DEFAULT_ENTRY_LOCK_AT = Date.UTC(2026, 5, 11, 19, 0, 0)
@@ -82,33 +82,6 @@ const tierSeed = [
   { name: 'Bombo 3', requiredPicks: 1, sortOrder: 3 },
   { name: 'Bombo 4', requiredPicks: 1, sortOrder: 4 },
 ]
-
-const eligiblePlayerSeed = [
-  ['Kylian Mbappe', 'Francia'],
-  ['Harry Kane', 'Inglaterra'],
-  ['Lionel Messi', 'Argentina'],
-  ['Erling Haaland', 'Noruega'],
-  ['Cristiano Ronaldo', 'Portugal'],
-  ['Vinicius Junior', 'Brasil'],
-  ['Jude Bellingham', 'Inglaterra'],
-  ['Lautaro Martinez', 'Argentina'],
-  ['Julian Alvarez', 'Argentina'],
-  ['Raphinha', 'Brasil'],
-  ['Neymar', 'Brasil'],
-  ['Lamine Yamal', 'España'],
-  ['Mikel Oyarzabal', 'España'],
-  ['Florian Wirtz', 'Alemania'],
-  ['Jamal Musiala', 'Alemania'],
-  ['Cody Gakpo', 'Países Bajos'],
-  ['Memphis Depay', 'Países Bajos'],
-  ['Romelu Lukaku', 'Bélgica'],
-  ['Mohamed Salah', 'Egipto'],
-  ['Luis Diaz', 'Colombia'],
-  ['Darwin Nunez', 'Uruguay'],
-  ['Son Heung-min', 'Corea del Sur'],
-  ['Christian Pulisic', 'Estados Unidos'],
-  ['Santiago Giménez', 'México'],
-] as const
 
 export const getAuthenticatedOverview = internalQuery({
   args: {
@@ -636,71 +609,6 @@ export const upsertParticipantsFromCsv = mutation({
   },
 })
 
-export const seedDemoPool = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const existingPool = await ctx.db
-      .query('pools')
-      .withIndex('by_slug', (q) => q.eq('slug', DEMO_SLUG))
-      .unique()
-
-    if (existingPool !== null) {
-      await ensureWorldCupSeedData(ctx, existingPool._id)
-      await upsertDemoParticipant(ctx, existingPool._id, 'Ana', 'ana', await hashPin('pool'), true)
-      await upsertDemoParticipant(ctx, existingPool._id, 'Diego', 'diego', await hashPin('pool'), false)
-      await upsertDemoParticipant(ctx, existingPool._id, 'Maya', 'maya', await hashPin('pool'), false)
-      return existingPool._id
-    }
-
-    const now = Date.now()
-    const poolId = await ctx.db.insert('pools', {
-      name: 'World Cup 2026 Pool',
-      slug: DEMO_SLUG,
-      entryLockAt: DEFAULT_ENTRY_LOCK_AT,
-      adminPin: 'change-me',
-      status: 'open',
-    })
-
-    const seedData = await ensureWorldCupSeedData(ctx, poolId)
-
-    await ctx.db.insert('stageBonuses', { poolId, stage: 'Round of 16', points: 2, sortOrder: 1 })
-    await ctx.db.insert('stageBonuses', { poolId, stage: 'Quarterfinal', points: 4, sortOrder: 2 })
-    await ctx.db.insert('stageBonuses', { poolId, stage: 'Semifinal', points: 7, sortOrder: 3 })
-    await ctx.db.insert('stageBonuses', { poolId, stage: 'Champion', points: 12, sortOrder: 4 })
-
-    const anaId = await insertParticipant(ctx, poolId, 'Ana', 'ana', await hashPin('pool'), true)
-    const diegoId = await insertParticipant(ctx, poolId, 'Diego', 'diego', await hashPin('pool'), false)
-    const mayaId = await insertParticipant(ctx, poolId, 'Maya', 'maya', await hashPin('pool'), false)
-
-    await insertEntry(ctx, poolId, anaId, seedData.playersByName.get('Lionel Messi')!, now, [
-      [seedData.tiersByOrder.get(1)!, seedData.teamsByName.get('Argentina')!],
-      [seedData.tiersByOrder.get(1)!, seedData.teamsByName.get('Francia')!],
-      [seedData.tiersByOrder.get(2)!, seedData.teamsByName.get('Brasil')!],
-      [seedData.tiersByOrder.get(2)!, seedData.teamsByName.get('Portugal')!],
-      [seedData.tiersByOrder.get(3)!, seedData.teamsByName.get('Estados Unidos')!],
-      [seedData.tiersByOrder.get(4)!, seedData.teamsByName.get('México')!],
-    ])
-    await insertEntry(ctx, poolId, diegoId, seedData.playersByName.get('Kylian Mbappe')!, now, [
-      [seedData.tiersByOrder.get(1)!, seedData.teamsByName.get('Francia')!],
-      [seedData.tiersByOrder.get(1)!, seedData.teamsByName.get('Inglaterra')!],
-      [seedData.tiersByOrder.get(2)!, seedData.teamsByName.get('Uruguay')!],
-      [seedData.tiersByOrder.get(2)!, seedData.teamsByName.get('Países Bajos')!],
-      [seedData.tiersByOrder.get(3)!, seedData.teamsByName.get('Noruega')!],
-      [seedData.tiersByOrder.get(4)!, seedData.teamsByName.get('Suecia')!],
-    ])
-    await insertEntry(ctx, poolId, mayaId, seedData.playersByName.get('Harry Kane')!, now, [
-      [seedData.tiersByOrder.get(1)!, seedData.teamsByName.get('España')!],
-      [seedData.tiersByOrder.get(1)!, seedData.teamsByName.get('Argentina')!],
-      [seedData.tiersByOrder.get(2)!, seedData.teamsByName.get('Colombia')!],
-      [seedData.tiersByOrder.get(2)!, seedData.teamsByName.get('Croacia')!],
-      [seedData.tiersByOrder.get(3)!, seedData.teamsByName.get('Egipto')!],
-      [seedData.tiersByOrder.get(4)!, seedData.teamsByName.get('Escocia')!],
-    ])
-
-    return poolId
-  },
-})
-
 async function insertTeam(
   ctx: MutationCtx,
   poolId: Id<'pools'>,
@@ -710,17 +618,6 @@ async function insertTeam(
   groupCode: string,
 ) {
   return await ctx.db.insert('teams', { poolId, tierId, name, fifaCode, groupCode })
-}
-
-async function insertEligiblePlayer(
-  ctx: MutationCtx,
-  poolId: Id<'pools'>,
-  name: string,
-  teamName: string,
-  teamId: Id<'teams'>,
-  teamFifaCode: string,
-) {
-  return await ctx.db.insert('eligiblePlayers', { poolId, name, teamName, teamId, teamFifaCode, isActive: true })
 }
 
 async function ensureWorldCupSeedData(ctx: MutationCtx, poolId: Id<'pools'>) {
@@ -736,9 +633,6 @@ async function ensureWorldCupSeedData(ctx: MutationCtx, poolId: Id<'pools'>) {
   const tiersByOrder = new Map(existingTiers.map((tier) => [tier.sortOrder, tier._id]))
   const teamsByCode = new Map(existingTeams.map((team) => [team.fifaCode, team._id]))
   const teamsByName = new Map(existingTeams.map((team) => [team.name, team._id]))
-  const teamMetaByName = new Map(existingTeams.map((team) => [team.name, { id: team._id, fifaCode: team.fifaCode }]))
-  const playersByName = new Map(existingPlayers.map((player) => [player.name, player._id]))
-
   for (const tier of tierSeed) {
     const existingTierId = tiersByOrder.get(tier.sortOrder)
 
@@ -772,7 +666,6 @@ async function ensureWorldCupSeedData(ctx: MutationCtx, poolId: Id<'pools'>) {
       const teamId = await insertTeam(ctx, poolId, tierId, team.name, team.fifaCode, team.groupCode)
       teamsByCode.set(team.fifaCode, teamId)
       teamsByName.set(team.name, teamId)
-      teamMetaByName.set(team.name, { id: teamId, fifaCode: team.fifaCode })
     } else {
       await ctx.db.patch(existingId, {
         name: team.name,
@@ -781,22 +674,6 @@ async function ensureWorldCupSeedData(ctx: MutationCtx, poolId: Id<'pools'>) {
         groupCode: team.groupCode,
       })
       teamsByName.set(team.name, existingId)
-      teamMetaByName.set(team.name, { id: existingId, fifaCode: team.fifaCode })
-    }
-  }
-
-  for (const [name, teamName] of eligiblePlayerSeed) {
-    const existingPlayerId = playersByName.get(name)
-    const team = teamMetaByName.get(teamName)
-
-    if (team === undefined) {
-      continue
-    }
-
-    if (existingPlayerId === undefined) {
-      playersByName.set(name, await insertEligiblePlayer(ctx, poolId, name, teamName, team.id, team.fifaCode))
-    } else {
-      await ctx.db.patch(existingPlayerId, { teamName, teamId: team.id, teamFifaCode: team.fifaCode, isActive: true })
     }
   }
 
@@ -811,72 +688,6 @@ async function ensureWorldCupSeedData(ctx: MutationCtx, poolId: Id<'pools'>) {
   return {
     tiersByOrder,
     teamsByName,
-    playersByName,
-  }
-}
-
-async function insertParticipant(
-  ctx: MutationCtx,
-  poolId: Id<'pools'>,
-  displayName: string,
-  loginName: string,
-  pinHash: string,
-  isAdmin: boolean,
-) {
-  return await ctx.db.insert('participants', {
-    poolId,
-    displayName,
-    loginName,
-    pinHash,
-    isAdmin,
-  })
-}
-
-async function upsertDemoParticipant(
-  ctx: MutationCtx,
-  poolId: Id<'pools'>,
-  displayName: string,
-  loginName: string,
-  pinHash: string,
-  isAdmin: boolean,
-) {
-  const existingParticipant = await ctx.db
-    .query('participants')
-    .withIndex('by_poolId_and_loginName', (q) => q.eq('poolId', poolId).eq('loginName', loginName))
-    .unique()
-
-  if (existingParticipant === null) {
-    return await insertParticipant(ctx, poolId, displayName, loginName, pinHash, isAdmin)
-  }
-
-  await ctx.db.patch(existingParticipant._id, {
-    displayName,
-    pinHash,
-    isAdmin,
-  })
-
-  return existingParticipant._id
-}
-
-async function insertEntry(
-  ctx: MutationCtx,
-  poolId: Id<'pools'>,
-  participantId: Id<'participants'>,
-  goalscorerPickId: Id<'eligiblePlayers'>,
-  submittedAt: number,
-  teamPicks: Array<[Id<'teamTiers'>, Id<'teams'>]>,
-) {
-  const entryId = await ctx.db.insert('entries', {
-    poolId,
-    participantId,
-    goalscorerPickId,
-    currentScore: 0,
-    submittedAt,
-    updatedAt: submittedAt,
-  })
-
-  for (const [tierId, teamId] of teamPicks) {
-    await ctx.db.insert('entryTeamPicks', { poolId, entryId, tierId, teamId })
   }
 }
 

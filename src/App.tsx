@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
-import { CalendarClock, Check, ListChecks, LogOut, Save, Search, Shield, Trophy } from 'lucide-react'
-import { useMutation } from 'convex/react'
+import { CalendarClock, Check, CircleDot, ListChecks, LogOut, Save, Search, Shield, Trophy } from 'lucide-react'
 
-import { api } from '../convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Combobox } from '@/components/ui/combobox'
@@ -14,7 +12,7 @@ type ProtectedRoute = 'leaderboard' | 'entries' | 'setup'
 function App() {
   if (!import.meta.env.VITE_CONVEX_URL || !import.meta.env.VITE_CONVEX_SITE_URL) {
     return (
-      <main className="flex min-h-svh items-center justify-center bg-background px-5 text-foreground">
+      <main className="app-surface flex min-h-svh items-center justify-center px-5 text-foreground">
         <LoginShell>
           <p className="text-sm text-muted-foreground">Configura VITE_CONVEX_URL y VITE_CONVEX_SITE_URL para activar el acceso de participantes.</p>
           <code className="block rounded-md border bg-muted px-3 py-2 text-xs">pnpm dev:convex</code>
@@ -72,28 +70,28 @@ function ConnectedApp() {
 
   if (overview === undefined) {
     return (
-      <main className="flex min-h-svh items-center justify-center bg-background px-5 text-foreground">
+      <main className="app-surface flex min-h-svh items-center justify-center px-5 text-foreground">
         <p className="text-sm text-muted-foreground">Cargando porra...</p>
       </main>
     )
   }
 
   return (
-    <main className="min-h-svh bg-background text-foreground">
-      <header className="border-b bg-card">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-5 py-4 sm:px-8 lg:flex-row lg:items-center lg:justify-between">
+    <main className="app-surface min-h-svh text-foreground">
+      <header className="top-bar">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-5 py-5 sm:px-8 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
               <Trophy className="size-4" aria-hidden="true" />
               {overview.pool.name}
             </div>
-            <h1 className="mt-1 text-2xl font-semibold tracking-normal">Panel de la porra</h1>
+            <h1 className="mt-1 text-3xl font-black tracking-normal sm:text-4xl">Panel de la porra</h1>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="nav-strip flex flex-wrap items-center gap-1">
             <RouteButton route="leaderboard" activeRoute={route} label="Clasificación" />
             <RouteButton route="entries" activeRoute={route} label="Apuestas" />
             <RouteButton route="setup" activeRoute={route} label="Configuración" />
-            <Button type="button" variant="outline" onClick={handleLogout}>
+            <Button className="ml-1" type="button" variant="ghost" onClick={handleLogout}>
               <LogOut className="size-4" aria-hidden="true" />
               Salir
             </Button>
@@ -101,32 +99,28 @@ function ConnectedApp() {
         </div>
       </header>
 
-      <div className="mx-auto grid w-full max-w-6xl gap-5 px-5 py-6 sm:px-8 lg:grid-cols-[220px_1fr]">
-        <aside className="space-y-3">
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+      <div className="mx-auto grid w-full max-w-6xl gap-8 px-5 py-7 sm:px-8 lg:grid-cols-[220px_1fr]">
+        <aside className="info-rail space-y-6">
+          <section className="space-y-2">
+            <h2 className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">
                 <Shield className="size-4" aria-hidden="true" />
                 Sesión
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <p className="font-medium">{overview.session.participantName}</p>
+            </h2>
+            <div className="space-y-1 text-sm">
+              <p className="text-lg font-black">{overview.session.participantName}</p>
               <p className="text-muted-foreground">{overview.session.isAdmin ? 'Participante administrador' : 'Participante'}</p>
-            </CardContent>
-          </Card>
-          <Card size="sm">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+            </div>
+          </section>
+          <section className="space-y-2">
+            <h2 className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">
                 <CalendarClock className="size-4" aria-hidden="true" />
                 Cierre de apuestas
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <p className="font-medium">{new Intl.DateTimeFormat('es-ES', { dateStyle: 'medium', timeStyle: 'short' }).format(overview.pool.entryLockAt)}</p>
+            </h2>
+            <div className="space-y-1 text-sm">
+              <p className="font-bold">{new Intl.DateTimeFormat('es-ES', { dateStyle: 'medium', timeStyle: 'short' }).format(overview.pool.entryLockAt)}</p>
               <p className="text-muted-foreground">{getPoolStatusLabel(overview.pool.status)}</p>
-            </CardContent>
-          </Card>
+            </div>
+          </section>
         </aside>
 
         {route === 'leaderboard' ? <Leaderboard overview={overview} /> : null}
@@ -142,7 +136,6 @@ function LoginScreen({ onLogin }: { onLogin: (overview: Overview) => void }) {
   const [pin, setPin] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const seedDemoPool = useMutation(api.pools.seedDemoPool)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -166,15 +159,8 @@ function LoginScreen({ onLogin }: { onLogin: (overview: Overview) => void }) {
     }
   }
 
-  async function handleSeedDemoPool() {
-    setError(null)
-    await seedDemoPool({})
-    setLoginName('ana')
-    setPin('pool')
-  }
-
   return (
-    <main className="flex min-h-svh items-center justify-center bg-background px-5 text-foreground">
+    <main className="app-surface flex min-h-svh items-center justify-center px-5 text-foreground">
       <LoginShell>
         <form className="space-y-4" onSubmit={handleSubmit}>
           <label className="block space-y-2 text-sm font-medium">
@@ -201,9 +187,6 @@ function LoginScreen({ onLogin }: { onLogin: (overview: Overview) => void }) {
             {isSubmitting ? 'Entrando...' : 'Entrar'}
           </Button>
         </form>
-        <Button className="w-full" type="button" variant="outline" onClick={handleSeedDemoPool}>
-          Crear porra de prueba
-        </Button>
       </LoginShell>
     </main>
   )
@@ -213,12 +196,12 @@ function LoginShell({ children }: { children: ReactNode }) {
   return (
     <section className="w-full max-w-sm space-y-6">
       <div className="space-y-2 text-center">
-        <div className="mx-auto flex size-10 items-center justify-center rounded-md border bg-card">
+        <div className="mx-auto flex size-11 rotate-[-4deg] items-center justify-center rounded-lg border-2 border-foreground bg-primary text-primary-foreground shadow-[4px_4px_0_var(--foreground)]">
           <Trophy className="size-5" aria-hidden="true" />
         </div>
-        <h1 className="text-2xl font-semibold tracking-normal">Porra del Mundial</h1>
+        <h1 className="text-3xl font-black tracking-normal">Porra del Mundial</h1>
       </div>
-      <Card>
+      <Card className="login-card">
         <CardContent className="space-y-4 pt-2">{children}</CardContent>
       </Card>
     </section>
@@ -229,7 +212,8 @@ function RouteButton({ route, activeRoute, label }: { route: ProtectedRoute; act
   return (
     <Button
       type="button"
-      variant={route === activeRoute ? 'default' : 'outline'}
+      className={route === activeRoute ? 'nav-button is-active' : 'nav-button'}
+      variant="ghost"
       onClick={() => {
         window.location.hash = route
       }}
@@ -242,31 +226,27 @@ function RouteButton({ route, activeRoute, label }: { route: ProtectedRoute; act
 function Leaderboard({ overview }: { overview: Overview }) {
   return (
     <section className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="metric-strip">
         <Metric label="Participantes" value={overview.counts.participants} />
         <Metric label="Apuestas" value={overview.counts.entries} />
         <Metric label="Equipos" value={overview.counts.teams} />
         <Metric label="Goleadores" value={overview.counts.eligiblePlayers} />
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Trophy className="size-5" aria-hidden="true" />
-            Clasificación
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="divide-y rounded-md border">
-            {overview.leaderboard.map((entry, index) => (
-              <div key={entry.entryId} className="grid grid-cols-[40px_1fr_auto] items-center gap-3 px-3 py-3 text-sm">
-                <span className="text-muted-foreground">{index + 1}</span>
-                <span className="font-medium">{entry.participantName}</span>
-                <span className="font-semibold">{entry.currentScore} pts.</span>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <section className="leaderboard-panel">
+        <div className="mb-3 flex items-center gap-2">
+          <Trophy className="size-5" aria-hidden="true" />
+          <h2 className="text-xl font-black">Clasificación</h2>
+        </div>
+        <div className="leaderboard-list">
+          {overview.leaderboard.map((entry, index) => (
+            <div key={entry.entryId} className="leaderboard-row">
+              <span className="rank-badge">{index + 1}</span>
+              <span className="font-bold">{entry.participantName}</span>
+              <span className="justify-self-end font-black">{entry.currentScore} pts.</span>
+            </div>
+          ))}
+        </div>
+      </section>
     </section>
   )
 }
@@ -359,11 +339,11 @@ function EntryEditor({ overview, onOverviewChange }: { overview: Overview; onOve
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Mi entrada</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-5">
+    <section className="entry-editor space-y-5">
+      <div>
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">Tu jugada</p>
+        <h2 className="text-2xl font-black">Mi entrada</h2>
+      </div>
         {overview.teamTiers.length === 0 ? (
           <p className="rounded-md border px-3 py-2 text-sm text-muted-foreground">Todavía no hay bombos configurados.</p>
         ) : (
@@ -381,10 +361,10 @@ function EntryEditor({ overview, onOverviewChange }: { overview: Overview; onOve
             const pickedInTier = selectedTeamIds.filter((id) => tierTeamIds.includes(id)).length
 
             return (
-              <div key={tier.id} className="space-y-3 rounded-md border p-3">
+              <div key={tier.id} className="tier-block space-y-3">
                 <div className="flex items-center justify-between gap-3 text-sm">
-                  <p className="font-medium">{tier.name}</p>
-                  <p className={pickedInTier === tier.requiredPicks ? 'text-muted-foreground' : 'text-destructive'}>
+                  <p className="font-black">{tier.name}</p>
+                  <p className={pickedInTier === tier.requiredPicks ? 'pick-counter is-complete' : 'pick-counter'}>
                     {pickedInTier}/{tier.requiredPicks}
                   </p>
                 </div>
@@ -393,7 +373,7 @@ function EntryEditor({ overview, onOverviewChange }: { overview: Overview; onOve
                     <button
                       key={team.id}
                       type="button"
-                      className={`flex min-h-10 items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition ${selectedTeamIds.includes(team.id) ? 'border-primary bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'}`}
+                      className={`team-pick ${selectedTeamIds.includes(team.id) ? 'is-selected' : ''}`}
                       disabled={isLocked}
                       onClick={() => toggleTeam(team.id, tier.requiredPicks, tierTeamIds)}
                     >
@@ -462,56 +442,51 @@ function EntryEditor({ overview, onOverviewChange }: { overview: Overview; onOve
           )}
         </div>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        <Button type="button" disabled={isLocked || isSaving} onClick={handleSave}>
+        <Button className="save-button" type="button" disabled={isLocked || isSaving} onClick={handleSave}>
           <Save className="size-4" aria-hidden="true" />
           {isSaving ? 'Guardando...' : 'Guardar entrada'}
         </Button>
-      </CardContent>
-    </Card>
+    </section>
   )
 }
 
 function Setup({ overview }: { overview: Overview }) {
   return (
     <section className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ListChecks className="size-5" aria-hidden="true" />
-            Grupos de equipos
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-3">
+      <section className="setup-section">
+        <h2 className="mb-4 flex items-center gap-2 text-xl font-black">
+          <ListChecks className="size-5" aria-hidden="true" />
+          Grupos de equipos
+        </h2>
+        <div className="grid gap-3 md:grid-cols-3">
           {overview.teamTiers.map((tier) => (
-            <div key={tier.id} className="rounded-md border p-3 text-sm">
+            <div key={tier.id} className="tier-block text-sm">
               <div className="flex items-center justify-between gap-3">
-                <p className="font-medium">{tier.name}</p>
+                <p className="font-black">{tier.name}</p>
                 <span className="text-muted-foreground">{tier.requiredPicks} elecciones</span>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {tier.teams.map((team) => (
-                  <span key={team.id} className="rounded-md bg-muted px-2 py-1 text-xs">
+                  <span key={team.id} className="team-chip">
                     {team.fifaCode} · {team.groupCode}
                   </span>
                 ))}
               </div>
             </div>
           ))}
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Bonus por ronda</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-2 sm:grid-cols-4">
+        </div>
+      </section>
+      <section className="setup-section">
+        <h2 className="mb-4 text-xl font-black">Bonus por ronda</h2>
+        <div className="grid gap-2 sm:grid-cols-4">
           {overview.stageBonuses.map((bonus) => (
-            <div key={bonus.id} className="rounded-md border px-3 py-2 text-sm">
-              <p className="font-medium">{bonus.stage}</p>
+            <div key={bonus.id} className="bonus-pill text-sm">
+              <p className="font-black">{bonus.stage}</p>
               <p className="text-muted-foreground">{bonus.points} puntos</p>
             </div>
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
     </section>
   )
 }
@@ -520,8 +495,8 @@ function TournamentGroups({ groups }: { groups: ReturnType<typeof getTournamentG
   return (
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {groups.map((group) => (
-        <div key={group.groupCode} className="rounded-md border p-3 text-sm">
-          <p className="font-medium">Grupo {group.groupCode}</p>
+        <div key={group.groupCode} className="group-block text-sm">
+          <p className="font-black">Grupo {group.groupCode}</p>
           <div className="mt-3 space-y-2">
             {group.teams.map((team) => (
               <div key={team.id} className="flex items-center justify-between gap-3">
@@ -541,12 +516,11 @@ function TournamentGroups({ groups }: { groups: ReturnType<typeof getTournamentG
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <Card size="sm">
-      <CardContent className="space-y-1">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="text-2xl font-semibold">{value}</p>
-      </CardContent>
-    </Card>
+    <div className="metric-item">
+      <CircleDot className="size-3 text-primary" aria-hidden="true" />
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="text-2xl font-black">{value}</p>
+    </div>
   )
 }
 
