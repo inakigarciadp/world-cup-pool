@@ -49,30 +49,30 @@
 }
 
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
+    --background: oklch(0.985 0.018 103);
+    --foreground: oklch(0.18 0.035 72);
+    --card: oklch(0.998 0.007 96);
+    --card-foreground: oklch(0.18 0.035 72);
     --popover: oklch(1 0 0);
     --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
+    --primary: oklch(0.55 0.16 143);
+    --primary-foreground: oklch(0.99 0.01 96);
+    --secondary: oklch(0.91 0.066 86);
+    --secondary-foreground: oklch(0.24 0.043 72);
+    --muted: oklch(0.94 0.03 92);
+    --muted-foreground: oklch(0.48 0.039 76);
+    --accent: oklch(0.88 0.111 72);
+    --accent-foreground: oklch(0.21 0.041 73);
     --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
+    --border: oklch(0.81 0.052 88);
+    --input: oklch(0.84 0.042 88);
+    --ring: oklch(0.64 0.15 143);
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
     --chart-3: oklch(0.439 0 0);
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
-    --radius: 0.625rem;
+    --radius: 0.5rem;
     --sidebar: oklch(0.985 0 0);
     --sidebar-foreground: oklch(0.145 0 0);
     --sidebar-primary: oklch(0.205 0 0);
@@ -127,4 +127,199 @@
   html {
     @apply font-sans;
     }
+}
+
+@layer components {
+  .app-surface {
+    background:
+      linear-gradient(90deg, oklch(0.64 0.14 143 / 0.07) 1px, transparent 1px),
+      linear-gradient(0deg, oklch(0.64 0.14 143 / 0.06) 1px, transparent 1px),
+      radial-gradient(circle at 16% 12%, oklch(0.88 0.13 78 / 0.35), transparent 28rem),
+      radial-gradient(circle at 92% 8%, oklch(0.68 0.12 179 / 0.2), transparent 24rem),
+      var(--background);
+    background-size: 44px 44px, 44px 44px, auto, auto, auto;
+  }
+
+  .top-bar {
+    border-bottom: 2px solid color-mix(in oklab, var(--foreground), transparent 86%);
+    background: color-mix(in oklab, var(--background), white 42%);
+    box-shadow: 0 12px 40px oklch(0.2 0.04 72 / 0.06);
+  }
+
+  .nav-strip {
+    width: fit-content;
+    max-width: 100%;
+    border: 1px solid color-mix(in oklab, var(--foreground), transparent 82%);
+    border-radius: 999px;
+    background: color-mix(in oklab, var(--card), transparent 9%);
+    padding: 4px;
+  }
+
+  .nav-button {
+    border-radius: 999px;
+    padding-inline: 0.9rem;
+    font-weight: 800;
+  }
+
+  .nav-button.is-active {
+    background: var(--foreground);
+    color: var(--background);
+  }
+
+  .info-rail {
+    border-left: 3px solid var(--primary);
+    padding-left: 1rem;
+  }
+
+  .login-card {
+    border: 2px solid color-mix(in oklab, var(--foreground), transparent 76%);
+    box-shadow: 8px 8px 0 color-mix(in oklab, var(--accent), transparent 18%);
+  }
+
+  .metric-strip {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1px;
+    overflow: hidden;
+    border: 1px solid color-mix(in oklab, var(--foreground), transparent 82%);
+    border-radius: 0.75rem;
+    background: color-mix(in oklab, var(--foreground), transparent 84%);
+  }
+
+  .metric-item {
+    display: grid;
+    min-height: 6.25rem;
+    align-content: space-between;
+    gap: 0.25rem;
+    background: color-mix(in oklab, var(--card), transparent 6%);
+    padding: 1rem;
+  }
+
+  .leaderboard-panel,
+  .entry-editor,
+  .setup-section {
+    border-top: 4px solid var(--foreground);
+    padding-top: 1rem;
+  }
+
+  .leaderboard-list {
+    display: grid;
+    gap: 0.45rem;
+  }
+
+  .leaderboard-row {
+    display: grid;
+    grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem;
+    border-bottom: 1px solid color-mix(in oklab, var(--foreground), transparent 86%);
+    padding: 0.75rem 0.25rem;
+    font-size: 0.95rem;
+  }
+
+  .leaderboard-row:first-child .rank-badge {
+    rotate: -5deg;
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
+
+  .rank-badge,
+  .pick-counter {
+    display: inline-flex;
+    min-width: 2rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid color-mix(in oklab, var(--foreground), transparent 78%);
+    border-radius: 999px;
+    padding: 0.2rem 0.55rem;
+    font-weight: 900;
+  }
+
+  .pick-counter {
+    border-color: color-mix(in oklab, var(--destructive), transparent 42%);
+    color: var(--destructive);
+  }
+
+  .pick-counter.is-complete {
+    border-color: color-mix(in oklab, var(--primary), transparent 30%);
+    color: var(--primary);
+  }
+
+  .tier-block,
+  .group-block {
+    border-left: 3px solid var(--primary);
+    background: color-mix(in oklab, var(--card), transparent 14%);
+    padding: 0.9rem;
+  }
+
+  .team-pick {
+    display: flex;
+    min-height: 2.75rem;
+    align-items: center;
+    gap: 0.55rem;
+    border: 1px solid color-mix(in oklab, var(--foreground), transparent 80%);
+    border-radius: 999px;
+    background: color-mix(in oklab, var(--card), transparent 8%);
+    padding: 0.55rem 0.8rem;
+    text-align: left;
+    font-size: 0.875rem;
+    transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+  }
+
+  .team-pick:hover:not(:disabled) {
+    transform: translateY(-1px);
+    border-color: var(--primary);
+  }
+
+  .team-pick.is-selected {
+    border-color: var(--foreground);
+    background: var(--primary);
+    color: var(--primary-foreground);
+    box-shadow: 3px 3px 0 var(--foreground);
+  }
+
+  .team-chip,
+  .bonus-pill {
+    border: 1px solid color-mix(in oklab, var(--foreground), transparent 82%);
+    border-radius: 999px;
+    background: color-mix(in oklab, var(--accent), transparent 58%);
+    padding: 0.3rem 0.55rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+  }
+
+  .bonus-pill {
+    display: block;
+    border-radius: 0.65rem;
+    padding: 0.75rem 0.9rem;
+    background: color-mix(in oklab, var(--card), transparent 10%);
+  }
+
+  .save-button {
+    height: 2.5rem;
+    padding-inline: 1rem;
+    font-weight: 900;
+    box-shadow: 4px 4px 0 color-mix(in oklab, var(--foreground), transparent 5%);
+  }
+
+  @media (min-width: 640px) {
+    .metric-strip {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 640px) {
+    .nav-strip {
+      width: 100%;
+      border-radius: 0.75rem;
+    }
+
+    .nav-button {
+      flex: 1 1 auto;
+    }
+
+    .leaderboard-row {
+      grid-template-columns: 2.25rem minmax(0, 1fr) auto;
+    }
+  }
 }
