@@ -67,14 +67,13 @@ function EntryEditor({ overview }: { overview: Overview }) {
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>(
     overview.currentEntry?.teamPickIds ?? [],
   )
-  const [goalscorerPickIds, setGoalscorerPickIds] = useState<Record<string, string>>(
-    () =>
-      Object.fromEntries(
-        overview.currentEntry?.goalscorerPickIds.map((pick) => [
-          pick.tierId,
-          pick.eligiblePlayerId,
-        ]) ?? [],
-      ),
+  const [goalscorerPickIds, setGoalscorerPickIds] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      overview.currentEntry?.goalscorerPickIds.map((pick) => [
+        pick.tierId,
+        pick.eligiblePlayerId,
+      ]) ?? [],
+    ),
   )
   const [goalscorerSearchByTier, setGoalscorerSearchByTier] = useState<Record<string, string>>({})
   const [showTournamentGroups, setShowTournamentGroups] = useState(false)

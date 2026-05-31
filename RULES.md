@@ -18,12 +18,12 @@ Goalscorer Picks are independent from Team Picks. A Goalscorer Pick must belong 
 
 Lower-ranked Team Tiers are worth more when they earn points.
 
-| Team Tier | Multiplier |
-| --- | ---: |
-| Team Tier 1 | 1.00 |
-| Team Tier 2 | 1.25 |
-| Team Tier 3 | 1.50 |
-| Team Tier 4 | 1.75 |
+| Team Tier   | Multiplier |
+| ----------- | ---------: |
+| Team Tier 1 |       1.00 |
+| Team Tier 2 |       1.25 |
+| Team Tier 3 |       1.50 |
+| Team Tier 4 |       1.75 |
 
 ## Team Pick Points
 
@@ -31,25 +31,25 @@ Each Team Pick earns Match Points and Stage Bonuses. First calculate the base po
 
 ### Match Points
 
-| Match result | Base points |
-| --- | ---: |
-| Win in normal time or extra time | 3 |
-| Draw | 1 |
-| Loss | 0 |
-| Win after a penalty shootout | 1 total |
-| Loss after a penalty shootout | 0 |
+| Match result                     | Base points |
+| -------------------------------- | ----------: |
+| Win in normal time or extra time |           3 |
+| Draw                             |           1 |
+| Loss                             |           0 |
+| Win after a penalty shootout     |     1 total |
+| Loss after a penalty shootout    |           0 |
 
 A penalty shootout win is worth 1 base point total. It does not also earn draw points or win points.
 
 ### Stage Bonuses
 
-| Achievement | Base points |
-| --- | ---: |
-| Qualifies for the Round of 32 | 5 |
-| Qualifies for the Round of 16 | 7.5 |
-| Qualifies for the quarter-finals | 10 |
-| Qualifies for the semi-finals | 15 |
-| Wins the World Cup | 20 |
+| Achievement                      | Base points |
+| -------------------------------- | ----------: |
+| Qualifies for the Round of 32    |           5 |
+| Qualifies for the Round of 16    |         7.5 |
+| Qualifies for the quarter-finals |          10 |
+| Qualifies for the semi-finals    |          15 |
+| Wins the World Cup               |          20 |
 
 A Stage Bonus is awarded once per Team Pick when the achievement is confirmed. Stage Bonuses are multiplied by the Team Pick's Tier Multiplier.
 
@@ -57,10 +57,10 @@ A Stage Bonus is awarded once per Team Pick when the achievement is confirmed. S
 
 Each Goalscorer Pick earns points from goals and may earn one top scorer bonus.
 
-| Achievement | Base points |
-| --- | ---: |
-| Goal officially credited to the selected player | 1 |
-| Tournament top scorer bonus | 10 |
+| Achievement                                     | Base points |
+| ----------------------------------------------- | ----------: |
+| Goal officially credited to the selected player |           1 |
+| Tournament top scorer bonus                     |          10 |
 
 Goal points are multiplied by the Goalscorer Pick's Tier Multiplier. The tournament top scorer bonus is flat and is not multiplied.
 

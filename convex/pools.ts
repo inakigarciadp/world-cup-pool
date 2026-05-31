@@ -152,10 +152,7 @@ export const getAuthenticatedOverview = internalQuery({
     const teamsByCode = new Map(teams.map((team) => [team.fifaCode, team]))
     const eligiblePlayersById = new Map(eligiblePlayers.map((player) => [player._id, player]))
     const picksByEntryId = new Map<Id<'entries'>, Doc<'entryTeamPicks'>[]>()
-    const goalscorerPicksByEntryId = new Map<
-      Id<'entries'>,
-      Doc<'entryGoalscorerPicks'>[]
-    >()
+    const goalscorerPicksByEntryId = new Map<Id<'entries'>, Doc<'entryGoalscorerPicks'>[]>()
 
     for (const pick of entryTeamPicks) {
       const existing = picksByEntryId.get(pick.entryId) ?? []
