@@ -1,11 +1,9 @@
 import { createContext, useContext } from 'react'
-import type { Dispatch, SetStateAction } from 'react'
-
 import type { Overview } from '@/lib/httpApi'
 
 type OverviewContextValue = {
   overview: Overview
-  setOverview: Dispatch<SetStateAction<Overview | null | undefined>>
+  setOverview: (overview: Overview) => void
 }
 
 export const OverviewContext = createContext<OverviewContextValue | null>(null)
