@@ -32,6 +32,8 @@ export type Overview = {
   }>
   eligiblePlayers: Array<{
     id: string
+    teamId: string | null
+    tierId: string | null
     name: string
     teamName: string
     teamFifaCode: string
@@ -45,7 +47,11 @@ export type Overview = {
   leaderboard: Array<{
     entryId: string
     participantName: string
-    goalscorerPick: string | null
+    goalscorerPicks: Array<{
+      tierName: string
+      playerName: string
+      teamName: string
+    }>
     teamPicks: Array<{
       tierName: string
       teamName: string
@@ -55,7 +61,10 @@ export type Overview = {
   }>
   currentEntry: {
     teamPickIds: string[]
-    goalscorerPickId: string | null
+    goalscorerPickIds: Array<{
+      tierId: string
+      eligiblePlayerId: string
+    }>
   } | null
 }
 
@@ -80,11 +89,14 @@ export async function getOverview() {
   return (await parseJsonResponse(response)) as Overview
 }
 
-export async function saveEntry(teamPickIds: string[], goalscorerPickId: string | null) {
+export async function saveEntry(
+  teamPickIds: string[],
+  goalscorerPickIds: Array<{ tierId: string; eligiblePlayerId: string }>,
+) {
   return await parseJsonResponse(
     await fetchWithRefreshRetry('/api/entry', {
       method: 'POST',
-      body: JSON.stringify({ teamPickIds, goalscorerPickId }),
+      body: JSON.stringify({ teamPickIds, goalscorerPickIds }),
     }),
   )
 }

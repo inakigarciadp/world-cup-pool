@@ -24,8 +24,24 @@ export function EntriesPage() {
             </CardHeader>
             <CardContent className="space-y-4 text-sm">
               <div>
-                <p className="text-muted-foreground">Goleador elegido</p>
-                <p className="font-medium">{entry.goalscorerPick ?? 'Sin elegir'}</p>
+                <p className="text-muted-foreground">Goleadores elegidos</p>
+                <div className="mt-2 space-y-2">
+                  {entry.goalscorerPicks.length === 0 ? (
+                    <p className="font-medium">Sin elegir</p>
+                  ) : (
+                    entry.goalscorerPicks.map((pick) => (
+                      <div
+                        key={`${entry.entryId}-${pick.tierName}-${pick.playerName}`}
+                        className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
+                      >
+                        <span className="text-muted-foreground">{pick.tierName}</span>
+                        <span className="text-right font-medium">
+                          {pick.playerName} · {pick.teamName}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
               <div className="space-y-2">
                 {entry.teamPicks.map((pick) => (
@@ -51,14 +67,26 @@ function EntryEditor({ overview }: { overview: Overview }) {
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>(
     overview.currentEntry?.teamPickIds ?? [],
   )
-  const [goalscorerPickId, setGoalscorerPickId] = useState(
-    overview.currentEntry?.goalscorerPickId ?? '',
+  const [goalscorerPickIds, setGoalscorerPickIds] = useState<Record<string, string>>(
+    () =>
+      Object.fromEntries(
+        overview.currentEntry?.goalscorerPickIds.map((pick) => [
+          pick.tierId,
+          pick.eligiblePlayerId,
+        ]) ?? [],
+      ),
   )
-  const [goalscorerSearch, setGoalscorerSearch] = useState('')
+  const [goalscorerSearchByTier, setGoalscorerSearchByTier] = useState<Record<string, string>>({})
   const [showTournamentGroups, setShowTournamentGroups] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const saveEntryMutation = useMutation({
-    mutationFn: () => saveEntry(selectedTeamIds, goalscorerPickId || null),
+    mutationFn: () =>
+      saveEntry(
+        selectedTeamIds,
+        Object.entries(goalscorerPickIds)
+          .filter(([, eligiblePlayerId]) => eligiblePlayerId !== '')
+          .map(([tierId, eligiblePlayerId]) => ({ tierId, eligiblePlayerId })),
+      ),
     onSuccess: async () => {
       const nextOverview = await queryClient.fetchQuery({
         ...overviewQueryOptions,
@@ -71,12 +99,6 @@ function EntryEditor({ overview }: { overview: Overview }) {
     },
   })
   const isLocked = overview.pool.status !== 'open' || overview.pool.entryLockAt <= now
-  const selectedGoalscorer =
-    overview.eligiblePlayers.find((player) => player.id === goalscorerPickId) ?? null
-  const filteredGoalscorers = useMemo(
-    () => filterGoalscorers(overview.eligiblePlayers, goalscorerSearch).slice(0, 80),
-    [goalscorerSearch, overview.eligiblePlayers],
-  )
   const tournamentGroups = useMemo(() => getTournamentGroups(overview), [overview])
 
   useEffect(() => {
@@ -178,74 +200,112 @@ function EntryEditor({ overview }: { overview: Overview }) {
         </div>
       )}
       <div className="space-y-3">
-        <p className="text-sm font-medium">Goleador elegido</p>
+        <p className="text-sm font-medium">Goleadores elegidos</p>
         {overview.eligiblePlayers.length === 0 ? (
           <p className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
             Todavía no hay goleadores configurados.
           </p>
         ) : (
-          <Combobox.Root
-            value={goalscorerPickId || null}
-            onValueChange={(value) => {
-              setGoalscorerPickId(typeof value === 'string' ? value : '')
-              setGoalscorerSearch('')
-            }}
-            inputValue={goalscorerSearch}
-            onInputValueChange={setGoalscorerSearch}
-            disabled={isLocked}
-          >
-            <div className="relative">
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                aria-hidden="true"
-              />
-              <Combobox.Input
-                className="pl-9"
-                placeholder={
-                  selectedGoalscorer
-                    ? `${selectedGoalscorer.name} · ${selectedGoalscorer.teamName}`
-                    : 'Buscar goleador o selección'
-                }
-              />
-            </div>
-            <Combobox.Portal>
-              <Combobox.Positioner sideOffset={6}>
-                <Combobox.Popup>
-                  {filteredGoalscorers.length === 0 ? (
-                    <Combobox.Empty>No hay goleadores que coincidan.</Combobox.Empty>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {overview.teamTiers.map((tier) => {
+              const selectedGoalscorerId = goalscorerPickIds[tier.id] ?? ''
+              const selectedGoalscorer =
+                overview.eligiblePlayers.find((player) => player.id === selectedGoalscorerId) ??
+                null
+              const availableGoalscorers = overview.eligiblePlayers.filter(
+                (player) => player.tierId === tier.id,
+              )
+              const search = goalscorerSearchByTier[tier.id] ?? ''
+              const filteredGoalscorers = filterGoalscorers(availableGoalscorers, search).slice(
+                0,
+                80,
+              )
+
+              return (
+                <div key={tier.id} className="tier-block space-y-3">
+                  <p className="text-sm font-black">{tier.name}</p>
+                  {availableGoalscorers.length === 0 ? (
+                    <p className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
+                      Todavía no hay goleadores en este bombo.
+                    </p>
                   ) : (
-                    <Combobox.List>
-                      {filteredGoalscorers.map((player) => (
-                        <Combobox.Item key={player.id} value={player.id}>
+                    <Combobox.Root
+                      value={selectedGoalscorerId || null}
+                      onValueChange={(value) => {
+                        setGoalscorerPickIds((current) => ({
+                          ...current,
+                          [tier.id]: typeof value === 'string' ? value : '',
+                        }))
+                        setGoalscorerSearchByTier((current) => ({ ...current, [tier.id]: '' }))
+                      }}
+                      inputValue={search}
+                      onInputValueChange={(value) =>
+                        setGoalscorerSearchByTier((current) => ({ ...current, [tier.id]: value }))
+                      }
+                      disabled={isLocked}
+                    >
+                      <div className="relative">
+                        <Search
+                          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                          aria-hidden="true"
+                        />
+                        <Combobox.Input
+                          className="pl-9"
+                          placeholder={
+                            selectedGoalscorer
+                              ? `${selectedGoalscorer.name} · ${selectedGoalscorer.teamName}`
+                              : 'Buscar goleador'
+                          }
+                        />
+                      </div>
+                      <Combobox.Portal>
+                        <Combobox.Positioner sideOffset={6}>
+                          <Combobox.Popup>
+                            {filteredGoalscorers.length === 0 ? (
+                              <Combobox.Empty>No hay goleadores que coincidan.</Combobox.Empty>
+                            ) : (
+                              <Combobox.List>
+                                {filteredGoalscorers.map((player) => (
+                                  <Combobox.Item key={player.id} value={player.id}>
+                                    <span className="text-lg leading-none" aria-hidden="true">
+                                      {getFlagEmoji(player.teamFifaCode)}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                      <span className="block truncate font-medium">
+                                        {player.name}
+                                      </span>
+                                      <span className="block truncate text-xs opacity-75">
+                                        {player.teamName} · {player.teamFifaCode} · Grupo{' '}
+                                        {player.groupCode}
+                                      </span>
+                                    </span>
+                                    {selectedGoalscorerId === player.id ? (
+                                      <Check className="size-4" aria-hidden="true" />
+                                    ) : null}
+                                  </Combobox.Item>
+                                ))}
+                              </Combobox.List>
+                            )}
+                          </Combobox.Popup>
+                        </Combobox.Positioner>
+                      </Combobox.Portal>
+                      {selectedGoalscorer ? (
+                        <p className="flex items-center gap-2 text-sm text-muted-foreground">
                           <span className="text-lg leading-none" aria-hidden="true">
-                            {getFlagEmoji(player.teamFifaCode)}
+                            {getFlagEmoji(selectedGoalscorer.teamFifaCode)}
                           </span>
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate font-medium">{player.name}</span>
-                            <span className="block truncate text-xs opacity-75">
-                              {player.teamName} · {player.teamFifaCode} · Grupo {player.groupCode}
-                            </span>
+                          Seleccionado:{' '}
+                          <span className="font-medium text-foreground">
+                            {selectedGoalscorer.name}
                           </span>
-                          {goalscorerPickId === player.id ? (
-                            <Check className="size-4" aria-hidden="true" />
-                          ) : null}
-                        </Combobox.Item>
-                      ))}
-                    </Combobox.List>
+                        </p>
+                      ) : null}
+                    </Combobox.Root>
                   )}
-                </Combobox.Popup>
-              </Combobox.Positioner>
-            </Combobox.Portal>
-            {selectedGoalscorer ? (
-              <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span className="text-lg leading-none" aria-hidden="true">
-                  {getFlagEmoji(selectedGoalscorer.teamFifaCode)}
-                </span>
-                Seleccionado:{' '}
-                <span className="font-medium text-foreground">{selectedGoalscorer.name}</span>
-              </p>
-            ) : null}
-          </Combobox.Root>
+                </div>
+              )
+            })}
+          </div>
         )}
       </div>
       {saveEntryMutation.error ? (

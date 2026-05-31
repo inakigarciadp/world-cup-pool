@@ -45,7 +45,7 @@ A footballer from an official final World Cup squad who is made available by the
 _Avoid_: Player, player option, scorer candidate, provisional player
 
 **Goalscorer Pick**:
-The single **Eligible Player** selected in an **Entry** for goalscorer scoring.
+An **Eligible Player** selected in an **Entry** for goalscorer scoring. An **Entry** must choose one Goalscorer Pick from each Team Tier. Goalscorer Picks are independent from Team Picks, so the selected Eligible Player only needs to belong to the same Team Tier, not to one of the Entry's selected Team Picks.
 _Avoid_: Top scorer, striker pick
 
 **Leaderboard**:
@@ -84,13 +84,16 @@ Dev: "Who fixes a typo in a locked Entry?"
 Domain expert: "The Admin can correct it, but Participants cannot edit locked Entries themselves."
 
 Dev: "How many teams does an Entry choose?"
-Domain expert: "The Pool defines Team Tiers and how many Team Picks are required from each tier."
+Domain expert: "For the 2026 Pool, an Entry chooses 1 Team Pick from Bombo 1, 2 from Bombo 2, 2 from Bombo 3, and 2 from Bombo 4."
 
 Dev: "Is Bombo 1 the same thing as Group A?"
 Domain expert: "No. A Team Tier controls selection rules for the Pool, while a Tournament Group is an official World Cup group."
 
 Dev: "Can someone type any goalscorer name?"
-Domain expert: "No. They choose one Goalscorer Pick from the Eligible Players, and Eligible Players come from official final World Cup squads."
+Domain expert: "No. They choose one Goalscorer Pick per Team Tier from the Eligible Players, and Eligible Players come from official final World Cup squads."
+
+Dev: "Does the Goalscorer Pick have to come from one of the Entry's selected Team Picks?"
+Domain expert: "No. Goalscorer Picks are independent from Team Picks, but each Goalscorer Pick must come from a team in the matching Team Tier."
 
 Dev: "Can Participants see other Entries before the World Cup starts?"
 Domain expert: "Yes. Entries are public throughout the Pool, including before the Entry Lock."

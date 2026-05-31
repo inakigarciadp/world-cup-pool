@@ -210,7 +210,7 @@ http.route({
         poolId: payload.poolId as Id<'pools'>,
         participantId: payload.participantId as Id<'participants'>,
         teamPickIds: Array.isArray(body.teamPickIds) ? body.teamPickIds : [],
-        goalscorerPickId: typeof body.goalscorerPickId === 'string' ? body.goalscorerPickId : null,
+        goalscorerPickIds: Array.isArray(body.goalscorerPickIds) ? body.goalscorerPickIds : [],
       })
 
       return jsonResponse(result, request)

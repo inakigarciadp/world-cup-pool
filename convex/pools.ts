@@ -11,7 +11,11 @@ const DEFAULT_ENTRY_LOCK_AT = Date.UTC(2026, 5, 11, 19, 0, 0)
 type EntryOverview = {
   entryId: Id<'entries'>
   participantName: string
-  goalscorerPick: string | null
+  goalscorerPicks: Array<{
+    tierName: string
+    playerName: string
+    teamName: string
+  }>
   teamPicks: Array<{
     tierName: string
     teamName: string
@@ -77,10 +81,10 @@ const teamSeed = [
 ]
 
 const tierSeed = [
-  { name: 'Bombo 1', requiredPicks: 2, sortOrder: 1 },
+  { name: 'Bombo 1', requiredPicks: 1, sortOrder: 1 },
   { name: 'Bombo 2', requiredPicks: 2, sortOrder: 2 },
-  { name: 'Bombo 3', requiredPicks: 1, sortOrder: 3 },
-  { name: 'Bombo 4', requiredPicks: 1, sortOrder: 4 },
+  { name: 'Bombo 3', requiredPicks: 2, sortOrder: 3 },
+  { name: 'Bombo 4', requiredPicks: 2, sortOrder: 4 },
 ]
 
 export const getAuthenticatedOverview = internalQuery({
@@ -134,6 +138,10 @@ export const getAuthenticatedOverview = internalQuery({
       .query('entryTeamPicks')
       .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
       .take(500)
+    const entryGoalscorerPicks = await ctx.db
+      .query('entryGoalscorerPicks')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(500)
 
     const participantsById = new Map(
       participants.map((participant) => [participant._id, participant]),
@@ -144,6 +152,10 @@ export const getAuthenticatedOverview = internalQuery({
     const teamsByCode = new Map(teams.map((team) => [team.fifaCode, team]))
     const eligiblePlayersById = new Map(eligiblePlayers.map((player) => [player._id, player]))
     const picksByEntryId = new Map<Id<'entries'>, Doc<'entryTeamPicks'>[]>()
+    const goalscorerPicksByEntryId = new Map<
+      Id<'entries'>,
+      Doc<'entryGoalscorerPicks'>[]
+    >()
 
     for (const pick of entryTeamPicks) {
       const existing = picksByEntryId.get(pick.entryId) ?? []
@@ -151,12 +163,31 @@ export const getAuthenticatedOverview = internalQuery({
       picksByEntryId.set(pick.entryId, existing)
     }
 
+    for (const pick of entryGoalscorerPicks) {
+      const existing = goalscorerPicksByEntryId.get(pick.entryId) ?? []
+      existing.push(pick)
+      goalscorerPicksByEntryId.set(pick.entryId, existing)
+    }
+
     const entryOverviews: EntryOverview[] = entries.map((entry) => {
       const participant = participantsById.get(entry.participantId)
-      const goalscorerPick =
-        entry.goalscorerPickId === null
-          ? null
-          : (eligiblePlayersById.get(entry.goalscorerPickId)?.name ?? null)
+      const goalscorerPicks = (goalscorerPicksByEntryId.get(entry._id) ?? [])
+        .map((pick) => {
+          const tier = tiersById.get(pick.tierId)
+          const player = eligiblePlayersById.get(pick.eligiblePlayerId)
+
+          return {
+            tierName: tier?.name ?? 'Unknown tier',
+            playerName: player?.name ?? 'Unknown player',
+            teamName: player?.teamName ?? 'Unknown team',
+            sortOrder: tier?.sortOrder ?? 999,
+          }
+        })
+        .sort(
+          (left, right) =>
+            left.sortOrder - right.sortOrder || left.playerName.localeCompare(right.playerName),
+        )
+        .map(({ tierName, playerName, teamName }) => ({ tierName, playerName, teamName }))
       const teamPicks = (picksByEntryId.get(entry._id) ?? [])
         .map((pick) => {
           const tier = tiersById.get(pick.tierId)
@@ -177,7 +208,7 @@ export const getAuthenticatedOverview = internalQuery({
       return {
         entryId: entry._id,
         participantName: participant?.displayName ?? 'Unknown participant',
-        goalscorerPick,
+        goalscorerPicks,
         teamPicks,
         currentScore: entry.currentScore,
         submittedAt: entry.submittedAt,
@@ -241,7 +272,12 @@ export const getAuthenticatedOverview = internalQuery({
           ? null
           : {
               teamPickIds: (picksByEntryId.get(currentEntry._id) ?? []).map((pick) => pick.teamId),
-              goalscorerPickId: currentEntry.goalscorerPickId,
+              goalscorerPickIds: (goalscorerPicksByEntryId.get(currentEntry._id) ?? []).map(
+                (pick) => ({
+                  tierId: pick.tierId,
+                  eligiblePlayerId: pick.eligiblePlayerId,
+                }),
+              ),
             },
     }
   },
@@ -252,7 +288,12 @@ export const saveEntryForHttp = internalMutation({
     poolId: v.id('pools'),
     participantId: v.id('participants'),
     teamPickIds: v.array(v.id('teams')),
-    goalscorerPickId: v.union(v.id('eligiblePlayers'), v.null()),
+    goalscorerPickIds: v.array(
+      v.object({
+        tierId: v.id('teamTiers'),
+        eligiblePlayerId: v.id('eligiblePlayers'),
+      }),
+    ),
   },
   handler: async (ctx, args) => {
     const pool = await ctx.db.get(args.poolId)
@@ -273,16 +314,12 @@ export const saveEntryForHttp = internalMutation({
     const teams = await Promise.all(
       args.teamPickIds.map(async (teamId) => await ctx.db.get(teamId)),
     )
-    const activeGoalscorer =
-      args.goalscorerPickId === null ? null : await ctx.db.get(args.goalscorerPickId)
-
-    if (
-      activeGoalscorer === null ||
-      activeGoalscorer.poolId !== pool._id ||
-      !activeGoalscorer.isActive
-    ) {
-      throw new Error('Elige un goleador valido.')
-    }
+    const goalscorerPicks = await Promise.all(
+      args.goalscorerPickIds.map(async (pick) => ({
+        tierId: pick.tierId,
+        player: await ctx.db.get(pick.eligiblePlayerId),
+      })),
+    )
 
     if (new Set(args.teamPickIds).size !== args.teamPickIds.length) {
       throw new Error('No puedes elegir el mismo equipo dos veces.')
@@ -302,6 +339,35 @@ export const saveEntryForHttp = internalMutation({
       }
     }
 
+    if (new Set(args.goalscorerPickIds.map((pick) => pick.tierId)).size !== tiers.length) {
+      throw new Error('Elige un goleador de cada bombo.')
+    }
+
+    for (const tier of tiers) {
+      const goalscorerPick = goalscorerPicks.find((pick) => pick.tierId === tier._id)
+
+      if (goalscorerPick === undefined) {
+        throw new Error(`Elige un goleador en ${tier.name}.`)
+      }
+
+      if (
+        goalscorerPick.player === null ||
+        goalscorerPick.player.poolId !== pool._id ||
+        !goalscorerPick.player.isActive
+      ) {
+        throw new Error('Elige goleadores validos.')
+      }
+
+      const playerTeam =
+        goalscorerPick.player.teamId === undefined
+          ? null
+          : await ctx.db.get(goalscorerPick.player.teamId)
+
+      if (playerTeam === undefined || playerTeam === null || playerTeam.tierId !== tier._id) {
+        throw new Error(`El goleador de ${tier.name} debe ser de un equipo de ese bombo.`)
+      }
+    }
+
     const existingEntry = await ctx.db
       .query('entries')
       .withIndex('by_poolId_and_participantId', (q) =>
@@ -314,7 +380,7 @@ export const saveEntryForHttp = internalMutation({
         ? await ctx.db.insert('entries', {
             poolId: pool._id,
             participantId: participant._id,
-            goalscorerPickId: activeGoalscorer._id,
+            goalscorerPickId: null,
             currentScore: 0,
             submittedAt: now,
             updatedAt: now,
@@ -323,7 +389,7 @@ export const saveEntryForHttp = internalMutation({
 
     if (existingEntry !== null) {
       await ctx.db.patch(existingEntry._id, {
-        goalscorerPickId: activeGoalscorer._id,
+        goalscorerPickId: null,
         submittedAt: existingEntry.submittedAt ?? now,
         updatedAt: now,
       })
@@ -334,6 +400,15 @@ export const saveEntryForHttp = internalMutation({
         .take(100)
 
       for (const pick of existingPicks) {
+        await ctx.db.delete(pick._id)
+      }
+
+      const existingGoalscorerPicks = await ctx.db
+        .query('entryGoalscorerPicks')
+        .withIndex('by_entryId', (q) => q.eq('entryId', existingEntry._id))
+        .take(100)
+
+      for (const pick of existingGoalscorerPicks) {
         await ctx.db.delete(pick._id)
       }
     }
@@ -348,6 +423,19 @@ export const saveEntryForHttp = internalMutation({
         entryId,
         tierId: team.tierId,
         teamId: team._id,
+      })
+    }
+
+    for (const pick of goalscorerPicks) {
+      if (pick.player === null) {
+        throw new Error('Elige goleadores validos.')
+      }
+
+      await ctx.db.insert('entryGoalscorerPicks', {
+        poolId: pool._id,
+        entryId,
+        tierId: pick.tierId,
+        eligiblePlayerId: pick.player._id,
       })
     }
 
@@ -768,6 +856,8 @@ function getEligiblePlayerTeamFields(
     teamsByName.get(player.teamName)
 
   return {
+    teamId: team?._id ?? null,
+    tierId: team?.tierId ?? null,
     teamName: team?.name ?? player.teamName,
     teamFifaCode: team?.fifaCode ?? player.teamFifaCode ?? '',
     groupCode: team?.groupCode ?? '?',

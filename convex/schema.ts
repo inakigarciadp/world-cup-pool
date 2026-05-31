@@ -73,7 +73,7 @@ export default defineSchema({
   entries: defineTable({
     poolId: v.id('pools'),
     participantId: v.id('participants'),
-    goalscorerPickId: v.union(v.id('eligiblePlayers'), v.null()),
+    goalscorerPickId: v.optional(v.union(v.id('eligiblePlayers'), v.null())),
     currentScore: v.number(),
     submittedAt: v.union(v.number(), v.null()),
     updatedAt: v.number(),
@@ -87,6 +87,15 @@ export default defineSchema({
     entryId: v.id('entries'),
     tierId: v.id('teamTiers'),
     teamId: v.id('teams'),
+  })
+    .index('by_entryId', ['entryId'])
+    .index('by_poolId', ['poolId']),
+
+  entryGoalscorerPicks: defineTable({
+    poolId: v.id('pools'),
+    entryId: v.id('entries'),
+    tierId: v.id('teamTiers'),
+    eligiblePlayerId: v.id('eligiblePlayers'),
   })
     .index('by_entryId', ['entryId'])
     .index('by_poolId', ['poolId']),
