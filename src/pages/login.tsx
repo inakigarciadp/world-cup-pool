@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { useMutation } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 
 import { LoginShell } from '@/App'
@@ -9,23 +10,17 @@ import { loginSession } from '@/lib/auth-session'
 export function LoginPage() {
   const [loginName, setLoginName] = useState('')
   const [pin, setPin] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const navigate = useNavigate()
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setError(null)
-    setIsSubmitting(true)
-
-    try {
-      await loginSession(loginName, pin)
+  const loginMutation = useMutation({
+    mutationFn: () => loginSession(loginName, pin),
+    onSuccess: async () => {
       await navigate({ to: '/' })
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'No se ha podido iniciar la sesión.')
-    } finally {
-      setIsSubmitting(false)
-    }
+    },
+  })
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    loginMutation.mutate()
   }
 
   return (
@@ -51,9 +46,15 @@ export function LoginPage() {
               autoComplete="current-password"
             />
           </label>
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
-          <Button className="w-full" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Entrando...' : 'Entrar'}
+          {loginMutation.error ? (
+            <p className="text-sm text-destructive">
+              {loginMutation.error instanceof Error
+                ? loginMutation.error.message
+                : 'No se ha podido iniciar la sesión.'}
+            </p>
+          ) : null}
+          <Button className="w-full" type="submit" disabled={loginMutation.isPending}>
+            {loginMutation.isPending ? 'Entrando...' : 'Entrar'}
           </Button>
         </form>
       </LoginShell>

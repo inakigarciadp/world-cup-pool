@@ -1,19 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Check, ListChecks, Save, Search } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Combobox } from '@/components/ui/combobox'
-import { getOverview, saveEntry, type Overview } from '@/lib/httpApi'
+import { saveEntry, type Overview } from '@/lib/httpApi'
+import { overviewQueryKey, overviewQueryOptions } from '@/lib/overview-query'
 import { useOverview } from '@/lib/overview-context'
 import { filterGoalscorers, getFlagEmoji, getTournamentGroups } from '@/lib/teams'
 
 export function EntriesPage() {
-  const { overview, setOverview } = useOverview()
+  const { overview } = useOverview()
 
   return (
     <section className="space-y-5">
-      <EntryEditor overview={overview} onOverviewChange={setOverview} />
+      <EntryEditor overview={overview} />
       <div className="grid gap-4 md:grid-cols-2">
         {overview.leaderboard.map((entry) => (
           <Card key={entry.entryId}>
@@ -44,13 +46,8 @@ export function EntriesPage() {
   )
 }
 
-function EntryEditor({
-  overview,
-  onOverviewChange,
-}: {
-  overview: Overview
-  onOverviewChange: (overview: Overview) => void
-}) {
+function EntryEditor({ overview }: { overview: Overview }) {
+  const queryClient = useQueryClient()
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>(
     overview.currentEntry?.teamPickIds ?? [],
   )
@@ -59,9 +56,20 @@ function EntryEditor({
   )
   const [goalscorerSearch, setGoalscorerSearch] = useState('')
   const [showTournamentGroups, setShowTournamentGroups] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
   const [now, setNow] = useState(() => Date.now())
+  const saveEntryMutation = useMutation({
+    mutationFn: () => saveEntry(selectedTeamIds, goalscorerPickId || null),
+    onSuccess: async () => {
+      const nextOverview = await queryClient.fetchQuery({
+        ...overviewQueryOptions,
+        staleTime: 0,
+      })
+
+      if (nextOverview) {
+        queryClient.setQueryData(overviewQueryKey, nextOverview)
+      }
+    },
+  })
   const isLocked = overview.pool.status !== 'open' || overview.pool.entryLockAt <= now
   const selectedGoalscorer =
     overview.eligiblePlayers.find((player) => player.id === goalscorerPickId) ?? null
@@ -96,22 +104,8 @@ function EntryEditor({
     })
   }
 
-  async function handleSave() {
-    setError(null)
-    setIsSaving(true)
-
-    try {
-      await saveEntry(selectedTeamIds, goalscorerPickId || null)
-      const nextOverview = await getOverview()
-
-      if (nextOverview !== null) {
-        onOverviewChange(nextOverview)
-      }
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'No se ha podido guardar la entrada.')
-    } finally {
-      setIsSaving(false)
-    }
+  function handleSave() {
+    saveEntryMutation.mutate()
   }
 
   return (
@@ -254,15 +248,21 @@ function EntryEditor({
           </Combobox.Root>
         )}
       </div>
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {saveEntryMutation.error ? (
+        <p className="text-sm text-destructive">
+          {saveEntryMutation.error instanceof Error
+            ? saveEntryMutation.error.message
+            : 'No se ha podido guardar la entrada.'}
+        </p>
+      ) : null}
       <Button
         className="save-button"
         type="button"
-        disabled={isLocked || isSaving}
+        disabled={isLocked || saveEntryMutation.isPending}
         onClick={handleSave}
       >
         <Save className="size-4" aria-hidden="true" />
-        {isSaving ? 'Guardando...' : 'Guardar entrada'}
+        {saveEntryMutation.isPending ? 'Guardando...' : 'Guardar entrada'}
       </Button>
     </section>
   )

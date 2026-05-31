@@ -1,24 +1,34 @@
-import { useState } from 'react'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, Outlet, useNavigate } from '@tanstack/react-router'
 import { CalendarClock, LogOut, Shield, Trophy } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { logoutSession } from '@/lib/auth-session'
 import type { Overview } from '@/lib/httpApi'
+import { overviewQueryOptions, requireLoadedOverview } from '@/lib/overview-query'
 import { OverviewContext } from '@/lib/overview-context'
 import { getPoolStatusLabel } from '@/lib/pool'
 
 export function AuthenticatedLayout({ initialOverview }: { initialOverview: Overview }) {
-  const [overview, setOverview] = useState(initialOverview)
+  const { data } = useQuery({
+    ...overviewQueryOptions,
+    initialData: initialOverview,
+  })
+  const overview = requireLoadedOverview(data)
   const navigate = useNavigate()
+  const logoutMutation = useMutation({
+    mutationFn: logoutSession,
+    onSuccess: async () => {
+      await navigate({ to: '/login' })
+    },
+  })
 
-  async function handleLogout() {
-    await logoutSession()
-    await navigate({ to: '/login' })
+  function handleLogout() {
+    logoutMutation.mutate()
   }
 
   return (
-    <OverviewContext.Provider value={{ overview, setOverview }}>
+    <OverviewContext.Provider value={{ overview }}>
       <main className="app-surface min-h-svh text-foreground">
         <header className="top-bar">
           <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-5 py-5 sm:px-8 lg:flex-row lg:items-center lg:justify-between">
@@ -35,7 +45,13 @@ export function AuthenticatedLayout({ initialOverview }: { initialOverview: Over
               <NavLink to="/" label="Clasificación" />
               <NavLink to="/entries" label="Apuestas" />
               <NavLink to="/setup" label="Configuración" />
-              <Button className="ml-1" type="button" variant="ghost" onClick={handleLogout}>
+              <Button
+                className="ml-1"
+                type="button"
+                variant="ghost"
+                disabled={logoutMutation.isPending}
+                onClick={handleLogout}
+              >
                 <LogOut className="size-4" aria-hidden="true" />
                 Salir
               </Button>

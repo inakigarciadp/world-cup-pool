@@ -3,7 +3,6 @@ import type { Overview } from '@/lib/httpApi'
 
 type OverviewContextValue = {
   overview: Overview
-  setOverview: (overview: Overview) => void
 }
 
 export const OverviewContext = createContext<OverviewContextValue | null>(null)

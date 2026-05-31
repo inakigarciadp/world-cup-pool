@@ -1,32 +1,18 @@
-import { getOverview, login, logout, type Overview } from '@/lib/httpApi'
-
-let currentOverview: Overview | null | undefined
-let overviewRequest: Promise<Overview | null> | null = null
-
-export async function loadSessionOverview() {
-  if (currentOverview !== undefined) {
-    return currentOverview
-  }
-
-  overviewRequest ??= getOverview()
-
-  try {
-    currentOverview = await overviewRequest
-    return currentOverview
-  } catch {
-    currentOverview = null
-    return null
-  } finally {
-    overviewRequest = null
-  }
-}
+import { queryClient } from '@/lib/query-client'
+import { getOverview, login, logout } from '@/lib/httpApi'
+import { overviewQueryKey, overviewQueryOptions } from '@/lib/overview-query'
 
 export function getSessionOverview() {
-  return currentOverview
+  return queryClient.getQueryData(overviewQueryKey)
 }
 
-export function setSessionOverview(overview: Overview) {
-  currentOverview = overview
+export async function loadSessionOverview() {
+  try {
+    return await queryClient.fetchQuery(overviewQueryOptions)
+  } catch {
+    queryClient.setQueryData(overviewQueryKey, null)
+    return null
+  }
 }
 
 export async function loginSession(loginName: string, pin: string) {
@@ -37,12 +23,11 @@ export async function loginSession(loginName: string, pin: string) {
     throw new Error('No se ha podido iniciar la sesión.')
   }
 
-  setSessionOverview(overview)
+  queryClient.setQueryData(overviewQueryKey, overview)
   return overview
 }
 
 export async function logoutSession() {
   await logout()
-  currentOverview = null
-  overviewRequest = null
+  queryClient.setQueryData(overviewQueryKey, null)
 }
