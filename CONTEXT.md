@@ -32,6 +32,10 @@ _Avoid_: Bet, ticket, lineup
 A configured group of national teams from which an **Entry** must select a configured number of teams.
 _Avoid_: Pot, category, group, tournament group
 
+**Tier Multiplier**:
+A scoring weight attached to a **Team Tier** so that points earned through **Team Picks** and **Goalscorer Picks** from lower-ranked Team Tiers are worth more.
+_Avoid_: Odds, handicap, difficulty bonus
+
 **Tournament Group**:
 An official World Cup group, identified by a letter such as Group A, that contains the national teams scheduled to play each other in the tournament group stage.
 _Avoid_: Team Tier, Bombo
@@ -112,6 +116,21 @@ Domain expert: "No. The Pool uses configured Stage Bonuses for each meaningful t
 
 Dev: "When is a Stage Bonus awarded?"
 Domain expert: "When the Team Pick's qualification for that stage is confirmed."
+
+Dev: "Does a Tier Multiplier apply only to Match Points?"
+Domain expert: "No. For Team Picks, the Tier Multiplier applies to both Match Points and Stage Bonuses."
+
+Dev: "Which Tier Multipliers does the Pool use?"
+Domain expert: "The Pool uses 1.00 for Team Tier 1, 1.25 for Team Tier 2, 1.50 for Team Tier 3, and 1.75 for Team Tier 4."
+
+Dev: "Does a Tier Multiplier apply to the top scorer bonus?"
+Domain expert: "No. For Goalscorer Picks, the Tier Multiplier applies to ordinary goal points, but the tournament top scorer bonus stays flat."
+
+Dev: "Can the Leaderboard include fractional points?"
+Domain expert: "Yes. Tier Multipliers can produce fractional scores."
+
+Dev: "How should fractional scores be shown?"
+Domain expert: "Scores use quarter-point increments and are shown without unnecessary trailing zeros."
 
 Dev: "What happens if synced tournament data is wrong?"
 Domain expert: "The Admin can create an Admin Override, and that takes precedence over the Synced Result."
