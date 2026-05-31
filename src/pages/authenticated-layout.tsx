@@ -44,6 +44,7 @@ export function AuthenticatedLayout({ initialOverview }: { initialOverview: Over
             <div className="nav-strip flex flex-wrap items-center gap-1">
               <NavLink to="/" label="Clasificación" />
               <NavLink to="/entries" label="Apuestas" />
+              <NavLink to="/rules" label="Reglas" />
               <NavLink to="/setup" label="Configuración" />
               <Button
                 className="ml-1"
@@ -97,7 +98,7 @@ export function AuthenticatedLayout({ initialOverview }: { initialOverview: Over
   )
 }
 
-function NavLink({ to, label }: { to: '/' | '/entries' | '/setup'; label: string }) {
+function NavLink({ to, label }: { to: '/' | '/entries' | '/rules' | '/setup'; label: string }) {
   return (
     <Link
       to={to}

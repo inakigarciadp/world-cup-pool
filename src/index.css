@@ -202,9 +202,153 @@
 
   .leaderboard-panel,
   .entry-editor,
+  .rules-page,
   .setup-section {
     border-top: 4px solid var(--foreground);
     padding-top: 1rem;
+  }
+
+  .rules-hero {
+    position: relative;
+    padding-bottom: 0.5rem;
+  }
+
+  .rules-hero::after {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: min(14rem, 45%);
+    height: 0.35rem;
+    background: linear-gradient(90deg, var(--primary), var(--accent));
+    content: '';
+  }
+
+  .rules-story-grid {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .rules-block,
+  .rules-multipliers {
+    border-left: 3px solid var(--primary);
+    background: color-mix(in oklab, var(--card), transparent 12%);
+    padding: 1rem;
+  }
+
+  .rules-block h3,
+  .rules-score-strip h3,
+  .rules-multipliers h3 {
+    font-size: 1.05rem;
+    font-weight: 950;
+  }
+
+  .rules-block p,
+  .rules-score-strip p {
+    margin-top: 0.55rem;
+    color: var(--muted-foreground);
+    font-size: 0.95rem;
+    line-height: 1.65;
+  }
+
+  .rules-icon {
+    margin-bottom: 0.8rem;
+    display: inline-flex;
+    height: 2.25rem;
+    width: 2.25rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid color-mix(in oklab, var(--foreground), transparent 78%);
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
+
+  .rules-chip {
+    border: 1px solid color-mix(in oklab, var(--foreground), transparent 82%);
+    border-radius: 999px;
+    background: color-mix(in oklab, var(--background), white 30%);
+    padding: 0.45rem 0.7rem;
+    font-size: 0.82rem;
+    font-weight: 850;
+  }
+
+  .rules-note {
+    border-top: 1px solid color-mix(in oklab, var(--foreground), transparent 84%);
+    padding-top: 0.75rem;
+  }
+
+  .rules-score-strip {
+    display: grid;
+    gap: 1px;
+    overflow: hidden;
+    border: 1px solid color-mix(in oklab, var(--foreground), transparent 82%);
+    border-radius: 0.75rem;
+    background: color-mix(in oklab, var(--foreground), transparent 84%);
+  }
+
+  .rules-score-strip article {
+    min-height: 10rem;
+    background: color-mix(in oklab, var(--card), transparent 6%);
+    padding: 1rem;
+  }
+
+  .rules-score-strip svg {
+    margin-bottom: 0.8rem;
+    color: var(--primary);
+  }
+
+  .rules-point-list {
+    margin-top: 0.9rem;
+    display: grid;
+    gap: 0.45rem;
+  }
+
+  .rules-point-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 0.75rem;
+    border-bottom: 1px solid color-mix(in oklab, var(--foreground), transparent 86%);
+    padding-bottom: 0.45rem;
+    font-size: 0.88rem;
+  }
+
+  .rules-point-row dt {
+    color: var(--muted-foreground);
+    line-height: 1.35;
+  }
+
+  .rules-point-row dd {
+    color: var(--foreground);
+    font-weight: 950;
+    white-space: nowrap;
+  }
+
+  .rules-multipliers {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .rules-multiplier-grid {
+    display: grid;
+    gap: 0.6rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rules-multiplier {
+    display: flex;
+    min-height: 3.5rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-bottom: 1px solid color-mix(in oklab, var(--foreground), transparent 82%);
+    font-weight: 850;
+  }
+
+  .rules-multiplier strong {
+    color: var(--primary);
+    font-size: 1.4rem;
+    font-weight: 950;
   }
 
   .leaderboard-list {
@@ -312,6 +456,20 @@
 
   @media (min-width: 640px) {
     .metric-strip {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .rules-score-strip {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 768px) {
+    .rules-story-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .rules-multiplier-grid {
       grid-template-columns: repeat(4, minmax(0, 1fr));
     }
   }

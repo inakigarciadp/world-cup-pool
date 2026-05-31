@@ -13,6 +13,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedSetupRouteImport } from './routes/_authenticated/setup'
+import { Route as AuthenticatedRulesRouteImport } from './routes/_authenticated/rules'
 import { Route as AuthenticatedEntriesRouteImport } from './routes/_authenticated/entries'
 
 const LoginRoute = LoginRouteImport.update({
@@ -34,6 +35,11 @@ const AuthenticatedSetupRoute = AuthenticatedSetupRouteImport.update({
   path: '/setup',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedRulesRoute = AuthenticatedRulesRouteImport.update({
+  id: '/rules',
+  path: '/rules',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedEntriesRoute = AuthenticatedEntriesRouteImport.update({
   id: '/entries',
   path: '/entries',
@@ -44,11 +50,13 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/login': typeof LoginRoute
   '/entries': typeof AuthenticatedEntriesRoute
+  '/rules': typeof AuthenticatedRulesRoute
   '/setup': typeof AuthenticatedSetupRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/entries': typeof AuthenticatedEntriesRoute
+  '/rules': typeof AuthenticatedRulesRoute
   '/setup': typeof AuthenticatedSetupRoute
   '/': typeof AuthenticatedIndexRoute
 }
@@ -57,19 +65,21 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authenticated/entries': typeof AuthenticatedEntriesRoute
+  '/_authenticated/rules': typeof AuthenticatedRulesRoute
   '/_authenticated/setup': typeof AuthenticatedSetupRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/entries' | '/setup'
+  fullPaths: '/' | '/login' | '/entries' | '/rules' | '/setup'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/entries' | '/setup' | '/'
+  to: '/login' | '/entries' | '/rules' | '/setup' | '/'
   id:
     | '__root__'
     | '/_authenticated'
     | '/login'
     | '/_authenticated/entries'
+    | '/_authenticated/rules'
     | '/_authenticated/setup'
     | '/_authenticated/'
   fileRoutesById: FileRoutesById
@@ -109,6 +119,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSetupRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/rules': {
+      id: '/_authenticated/rules'
+      path: '/rules'
+      fullPath: '/rules'
+      preLoaderRoute: typeof AuthenticatedRulesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/entries': {
       id: '/_authenticated/entries'
       path: '/entries'
@@ -121,12 +138,14 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteChildren {
   AuthenticatedEntriesRoute: typeof AuthenticatedEntriesRoute
+  AuthenticatedRulesRoute: typeof AuthenticatedRulesRoute
   AuthenticatedSetupRoute: typeof AuthenticatedSetupRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedEntriesRoute: AuthenticatedEntriesRoute,
+  AuthenticatedRulesRoute: AuthenticatedRulesRoute,
   AuthenticatedSetupRoute: AuthenticatedSetupRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
 }
