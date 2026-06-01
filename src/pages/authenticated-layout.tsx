@@ -176,8 +176,8 @@ function BottomNav() {
     <nav className="bottom-nav" aria-label="Navegación principal">
       <div className="bottom-nav-inner">
         <Tab to="/" label="Porra" icon={Trophy} exact />
-        <Tab to="/entries" label="Apuestas" icon={ClipboardList} />
         <Tab to="/rules" label="Reglas" icon={Sparkles} />
+        <Tab to="/entries" label="Apuestas" icon={ClipboardList} />
       </div>
     </nav>
   )
