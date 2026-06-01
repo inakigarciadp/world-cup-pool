@@ -57,9 +57,6 @@ export function LoginPage() {
           {loginMutation.isPending ? 'Entrando…' : 'Entrar'}
           <ArrowRight className="size-5" aria-hidden="true" />
         </button>
-        <p className="text-center text-xs font-semibold text-ink-soft">
-          Pídele al admin que te dé de alta si aún no tienes nombre.
-        </p>
       </form>
     </LoginShell>
   )

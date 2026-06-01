@@ -25,16 +25,13 @@ export function App() {
 
 export function LoginShell({ children }: { children: ReactNode }) {
   return (
-    <main className="app-shell flex min-h-svh items-center justify-center px-5 py-10 text-foreground">
-      <div className="page-frame flex w-full flex-col items-center gap-6">
-        <header className="flex flex-col items-center gap-3 text-center">
+    <main className="app-shell flex min-h-svh items-center justify-center px-5 py-5 text-foreground">
+      <div className="page-frame flex w-full flex-col items-center gap-4">
+        <header className="flex flex-col items-center gap-2 text-center">
           <SoccerBall />
           <div className="space-y-1">
             <p className="eyebrow text-coral">Mundial 2026</p>
             <h1 className="display-title text-[2.6rem] leading-none">Porra TARAVERO</h1>
-            <p className="mt-1 text-sm font-medium text-ink-soft">
-              La porra de la cuadrilla. Apuesta, sufre, repite.
-            </p>
           </div>
         </header>
         <div className="login-card">{children}</div>
