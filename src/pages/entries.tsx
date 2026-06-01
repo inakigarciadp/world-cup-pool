@@ -156,6 +156,7 @@ function EntryEditor({ overview }: { overview: Overview }) {
                 <article key={tier.id} className="tier-card">
                   <div className="tier-head">
                     <div className="flex items-center gap-2">
+                      <span className="tier-mult">{formatMultiplier(tier.multiplier)}</span>
                       <span className="tier-tag">{tier.name}</span>
                     </div>
                     <span
@@ -226,6 +227,7 @@ function EntryEditor({ overview }: { overview: Overview }) {
                 <article key={tier.id} className="tier-card">
                   <div className="tier-head">
                     <div className="flex items-center gap-2">
+                      <span className="tier-mult">{formatMultiplier(tier.multiplier)}</span>
                       <span className="tier-tag">{tier.name}</span>
                     </div>
                     {selectedGoalscorer ? (
@@ -455,6 +457,14 @@ function getInitials(name: string) {
   if (parts.length === 0) return '?'
   if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase()
   return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase()
+}
+
+function formatMultiplier(value: number | null) {
+  if (value === null) return '-'
+
+  return `x${new Intl.NumberFormat('es-ES', {
+    maximumFractionDigits: 2,
+  }).format(value)}`
 }
 
 function formatScore(value: number) {

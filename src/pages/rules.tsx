@@ -1,18 +1,6 @@
 import { CircleHelp, Flag, Goal, Medal, Trophy } from 'lucide-react'
 
-const teamRules = [
-  ['Bombo 1', '1 selección'],
-  ['Bombo 2', '2 selecciones'],
-  ['Bombo 3', '2 selecciones'],
-  ['Bombo 4', '2 selecciones'],
-]
-
-const multipliers = [
-  ['Bombo 1', 'x1'],
-  ['Bombo 2', 'x1,25'],
-  ['Bombo 3', 'x1,5'],
-  ['Bombo 4', 'x1,75'],
-]
+import { useOverview } from '@/lib/overview-context'
 
 const matchPoints = [
   ['Victoria en partido', '3 pts'],
@@ -36,6 +24,16 @@ const goalscorerPoints = [
 ]
 
 export function RulesPage() {
+  const { overview } = useOverview()
+  const teamRules = overview.teamTiers.map((tier) => [
+    tier.name,
+    `${tier.requiredPicks} ${tier.requiredPicks === 1 ? 'selección' : 'selecciones'}`,
+  ])
+  const multipliers = overview.teamTiers.map((tier) => [
+    tier.name,
+    formatMultiplier(tier.multiplier),
+  ])
+
   return (
     <section className="space-y-6">
       <header className="rules-hero">
@@ -155,4 +153,12 @@ export function RulesPage() {
       </section>
     </section>
   )
+}
+
+function formatMultiplier(value: number | null) {
+  if (value === null) return '-'
+
+  return `x${new Intl.NumberFormat('es-ES', {
+    maximumFractionDigits: 2,
+  }).format(value)}`
 }

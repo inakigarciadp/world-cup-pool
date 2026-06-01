@@ -30,6 +30,7 @@ const args = JSON.stringify({ slug, users })
 
 if (isDryRun) {
   console.log(`Would sync ${users.length} user(s) to ${deployment} deployment for pool "${slug}".`)
+  console.log('Pool config, teams, and tier multipliers are also synced before users.')
   console.log('Existing database participants not present in the CSV are left untouched.')
   process.exit(0)
 }

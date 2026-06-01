@@ -81,10 +81,10 @@ const teamSeed = [
 ]
 
 const tierSeed = [
-  { name: 'Bombo 1', requiredPicks: 1, sortOrder: 1 },
-  { name: 'Bombo 2', requiredPicks: 2, sortOrder: 2 },
-  { name: 'Bombo 3', requiredPicks: 2, sortOrder: 3 },
-  { name: 'Bombo 4', requiredPicks: 2, sortOrder: 4 },
+  { name: 'Bombo 1', requiredPicks: 1, multiplier: 1, sortOrder: 1 },
+  { name: 'Bombo 2', requiredPicks: 2, multiplier: 1.25, sortOrder: 2 },
+  { name: 'Bombo 3', requiredPicks: 2, multiplier: 1.5, sortOrder: 3 },
+  { name: 'Bombo 4', requiredPicks: 2, multiplier: 1.75, sortOrder: 4 },
 ]
 
 export const getAuthenticatedOverview = internalQuery({
@@ -236,6 +236,7 @@ export const getAuthenticatedOverview = internalQuery({
         id: tier._id,
         name: tier.name,
         requiredPicks: tier.requiredPicks,
+        multiplier: tier.multiplier ?? null,
         teams: teams
           .filter((team) => team.tierId === tier._id)
           .sort((left, right) => left.name.localeCompare(right.name))
@@ -765,6 +766,7 @@ async function ensureWorldCupSeedData(ctx: MutationCtx, poolId: Id<'pools'>) {
           poolId,
           name: tier.name,
           requiredPicks: tier.requiredPicks,
+          multiplier: tier.multiplier,
           sortOrder: tier.sortOrder,
         }),
       )
@@ -772,6 +774,7 @@ async function ensureWorldCupSeedData(ctx: MutationCtx, poolId: Id<'pools'>) {
       await ctx.db.patch(existingTierId, {
         name: tier.name,
         requiredPicks: tier.requiredPicks,
+        multiplier: tier.multiplier,
       })
     }
   }

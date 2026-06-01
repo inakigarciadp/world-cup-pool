@@ -23,6 +23,7 @@ export type Overview = {
     id: string
     name: string
     requiredPicks: number
+    multiplier: number | null
     teams: Array<{
       id: string
       name: string

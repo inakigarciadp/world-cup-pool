@@ -39,6 +39,7 @@ export default defineSchema({
     poolId: v.id('pools'),
     name: v.string(),
     requiredPicks: v.number(),
+    multiplier: v.optional(v.number()),
     sortOrder: v.number(),
   }).index('by_poolId_and_sortOrder', ['poolId', 'sortOrder']),
 
