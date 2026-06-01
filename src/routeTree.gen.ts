@@ -13,6 +13,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedRulesRouteImport } from './routes/_authenticated/rules'
+import { Route as AuthenticatedMatchesRouteImport } from './routes/_authenticated/matches'
 import { Route as AuthenticatedEntriesRouteImport } from './routes/_authenticated/entries'
 
 const LoginRoute = LoginRouteImport.update({
@@ -34,6 +35,11 @@ const AuthenticatedRulesRoute = AuthenticatedRulesRouteImport.update({
   path: '/rules',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedMatchesRoute = AuthenticatedMatchesRouteImport.update({
+  id: '/matches',
+  path: '/matches',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedEntriesRoute = AuthenticatedEntriesRouteImport.update({
   id: '/entries',
   path: '/entries',
@@ -44,11 +50,13 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/login': typeof LoginRoute
   '/entries': typeof AuthenticatedEntriesRoute
+  '/matches': typeof AuthenticatedMatchesRoute
   '/rules': typeof AuthenticatedRulesRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/entries': typeof AuthenticatedEntriesRoute
+  '/matches': typeof AuthenticatedMatchesRoute
   '/rules': typeof AuthenticatedRulesRoute
   '/': typeof AuthenticatedIndexRoute
 }
@@ -57,19 +65,21 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authenticated/entries': typeof AuthenticatedEntriesRoute
+  '/_authenticated/matches': typeof AuthenticatedMatchesRoute
   '/_authenticated/rules': typeof AuthenticatedRulesRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/entries' | '/rules'
+  fullPaths: '/' | '/login' | '/entries' | '/matches' | '/rules'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/entries' | '/rules' | '/'
+  to: '/login' | '/entries' | '/matches' | '/rules' | '/'
   id:
     | '__root__'
     | '/_authenticated'
     | '/login'
     | '/_authenticated/entries'
+    | '/_authenticated/matches'
     | '/_authenticated/rules'
     | '/_authenticated/'
   fileRoutesById: FileRoutesById
@@ -109,6 +119,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRulesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/matches': {
+      id: '/_authenticated/matches'
+      path: '/matches'
+      fullPath: '/matches'
+      preLoaderRoute: typeof AuthenticatedMatchesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/entries': {
       id: '/_authenticated/entries'
       path: '/entries'
@@ -121,12 +138,14 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteChildren {
   AuthenticatedEntriesRoute: typeof AuthenticatedEntriesRoute
+  AuthenticatedMatchesRoute: typeof AuthenticatedMatchesRoute
   AuthenticatedRulesRoute: typeof AuthenticatedRulesRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedEntriesRoute: AuthenticatedEntriesRoute,
+  AuthenticatedMatchesRoute: AuthenticatedMatchesRoute,
   AuthenticatedRulesRoute: AuthenticatedRulesRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
 }

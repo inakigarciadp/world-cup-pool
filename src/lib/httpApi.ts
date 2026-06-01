@@ -70,6 +70,96 @@ export type Overview = {
   } | null
 }
 
+export type MatchesPayload = {
+  session: {
+    participantId: string
+    participantName: string
+    isAdmin: boolean
+  }
+  tournamentStarted: boolean
+  teams: Array<{
+    id: string
+    name: string
+    fifaCode: string
+    groupCode: string
+  }>
+  eligiblePlayers: Array<{
+    id: string
+    name: string
+    teamId: string | null
+    teamName: string
+    teamFifaCode: string
+  }>
+  matches: Match[]
+}
+
+export type Match = {
+  id: string
+  matchNumber: number
+  stage: string
+  groupName: string | null
+  kickoffAt: number
+  venueName: string
+  venueCity: string
+  home: MatchSide
+  away: MatchSide
+  result: {
+    homeGoals: number
+    awayGoals: number
+    penaltyShootoutWinnerTeamId: string | null
+    updatedAt: number
+  } | null
+  goals: Array<{
+    id: string
+    scoringTeamId: string
+    scoringTeamName: string
+    creditedPlayerId: string
+    creditedPlayerName: string
+    creditedPlayerTeamId: string | null
+    creditedPlayerTeamName: string
+    isOwnGoal: boolean
+    minuteLabel: string | null
+    sortOrder: number
+  }>
+  completeness: {
+    expectedGoals: number
+    recordedGoals: number
+    missingGoals: number
+    extraGoals: number
+  } | null
+  hasCurrentParticipantStake: boolean
+  stakes: Array<{
+    participantId: string
+    participantName: string
+    stakes: Array<
+      | {
+          kind: 'teamPick'
+          teamId: string
+          teamName: string
+          tierName: string
+        }
+      | {
+          kind: 'goalscorerPick'
+          eligiblePlayerId: string
+          playerName: string
+          teamId: string
+          teamName: string
+          tierName: string
+        }
+    >
+  }>
+}
+
+export type MatchSide = {
+  placeholder: string
+  team: {
+    id: string
+    name: string
+    fifaCode: string
+    groupCode: string
+  } | null
+}
+
 export async function login(loginName: string, pin: string) {
   return await request('/auth/login', {
     method: 'POST',
@@ -91,6 +181,16 @@ export async function getOverview() {
   return (await parseJsonResponse(response)) as Overview
 }
 
+export async function getMatches(includePast: boolean) {
+  const response = await fetchWithRefreshRetry(`/api/matches?includePast=${includePast}`)
+
+  if (response.status === 401) {
+    return null
+  }
+
+  return (await parseJsonResponse(response)) as MatchesPayload
+}
+
 export async function saveEntry(
   teamPickIds: string[],
   goalscorerPickIds: Array<{ tierId: string; eligiblePlayerId: string }>,
@@ -99,6 +199,62 @@ export async function saveEntry(
     await fetchWithRefreshRetry('/api/entry', {
       method: 'POST',
       body: JSON.stringify({ teamPickIds, goalscorerPickIds }),
+    }),
+  )
+}
+
+export async function updateMatchTeams({
+  matchId,
+  homeTeamId,
+  awayTeamId,
+}: {
+  matchId: string
+  homeTeamId: string | null
+  awayTeamId: string | null
+}) {
+  return await parseJsonResponse(
+    await fetchWithRefreshRetry('/api/matches/teams', {
+      method: 'POST',
+      body: JSON.stringify({ matchId, homeTeamId, awayTeamId }),
+    }),
+  )
+}
+
+export async function saveMatchResult({
+  matchId,
+  homeGoals,
+  awayGoals,
+  penaltyShootoutWinnerTeamId,
+}: {
+  matchId: string
+  homeGoals: number | null
+  awayGoals: number | null
+  penaltyShootoutWinnerTeamId: string | null
+}) {
+  return await parseJsonResponse(
+    await fetchWithRefreshRetry('/api/matches/result', {
+      method: 'POST',
+      body: JSON.stringify({ matchId, homeGoals, awayGoals, penaltyShootoutWinnerTeamId }),
+    }),
+  )
+}
+
+export async function replaceMatchGoals({
+  matchId,
+  goals,
+}: {
+  matchId: string
+  goals: Array<{
+    scoringTeamId: string
+    creditedPlayerId: string
+    isOwnGoal: boolean
+    minuteLabel: string | null
+  }>
+}) {
+  return await parseJsonResponse(
+    await fetchWithRefreshRetry('/api/matches/goals', {
+      method: 'POST',
+      body: JSON.stringify({ matchId, goals }),
     }),
   )
 }

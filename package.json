@@ -15,6 +15,9 @@
     "players:import:fifa": "node scripts/import-fifa-eligible-players.mjs --dry-run",
     "players:import:fifa:dev": "node scripts/import-fifa-eligible-players.mjs --deployment dev",
     "players:import:fifa:prod": "node scripts/import-fifa-eligible-players.mjs --deployment prod",
+    "matches:import:fifa": "node scripts/import-fifa-matches.mjs --dry-run",
+    "matches:import:fifa:dev": "node scripts/import-fifa-matches.mjs --deployment dev",
+    "matches:import:fifa:prod": "node scripts/import-fifa-matches.mjs --deployment prod",
     "users:add": "node scripts/add-user.mjs",
     "users:sync:dev": "node scripts/sync-users-to-convex.mjs --deployment dev",
     "users:sync:prod": "node scripts/sync-users-to-convex.mjs --deployment prod"

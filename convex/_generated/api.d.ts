@@ -10,6 +10,7 @@
 
 import type * as authCrypto from "../authCrypto.js";
 import type * as http from "../http.js";
+import type * as matches from "../matches.js";
 import type * as pools from "../pools.js";
 
 import type {
@@ -21,6 +22,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   authCrypto: typeof authCrypto;
   http: typeof http;
+  matches: typeof matches;
   pools: typeof pools;
 }>;
 

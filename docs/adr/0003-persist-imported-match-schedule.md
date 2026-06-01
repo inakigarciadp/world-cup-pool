@@ -1,0 +1,3 @@
+# Persist Imported Match Schedule
+
+The app stores the World Cup Match Schedule in Convex and renders Matches from persisted records instead of fetching external tournament data during page load. The initial Match Schedule import should come from FIFA's official schedule PDF, normalized through a helper script or intermediate file if needed. Kickoff times are stored as absolute UTC timestamps and displayed to Participants in Spanish Spain formatting. External data sources are used for imports or later sync jobs, while persisted records keep the user experience stable, make Admin corrections possible, and give scoring logic one internal source of truth.

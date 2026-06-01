@@ -100,4 +100,51 @@ export default defineSchema({
   })
     .index('by_entryId', ['entryId'])
     .index('by_poolId', ['poolId']),
+
+  matches: defineTable({
+    poolId: v.id('pools'),
+    matchNumber: v.number(),
+    fifaMatchId: v.string(),
+    stage: v.string(),
+    groupName: v.union(v.string(), v.null()),
+    kickoffAt: v.number(),
+    venueName: v.string(),
+    venueCity: v.string(),
+    homePlaceholder: v.string(),
+    awayPlaceholder: v.string(),
+    homeTeamId: v.union(v.id('teams'), v.null()),
+    awayTeamId: v.union(v.id('teams'), v.null()),
+    source: v.string(),
+    sourceUrl: v.string(),
+    sourceUpdatedAt: v.number(),
+  })
+    .index('by_poolId_and_kickoffAt', ['poolId', 'kickoffAt'])
+    .index('by_poolId_and_matchNumber', ['poolId', 'matchNumber']),
+
+  matchResults: defineTable({
+    poolId: v.id('pools'),
+    matchId: v.id('matches'),
+    homeGoals: v.number(),
+    awayGoals: v.number(),
+    penaltyShootoutWinnerTeamId: v.union(v.id('teams'), v.null()),
+    updatedAt: v.number(),
+    updatedByParticipantId: v.union(v.id('participants'), v.null()),
+  })
+    .index('by_matchId', ['matchId'])
+    .index('by_poolId', ['poolId']),
+
+  matchGoals: defineTable({
+    poolId: v.id('pools'),
+    matchId: v.id('matches'),
+    scoringTeamId: v.id('teams'),
+    creditedPlayerId: v.id('eligiblePlayers'),
+    isOwnGoal: v.boolean(),
+    minuteLabel: v.union(v.string(), v.null()),
+    sortOrder: v.number(),
+    updatedAt: v.number(),
+    updatedByParticipantId: v.union(v.id('participants'), v.null()),
+  })
+    .index('by_matchId_and_sortOrder', ['matchId', 'sortOrder'])
+    .index('by_poolId', ['poolId'])
+    .index('by_creditedPlayerId', ['creditedPlayerId']),
 })

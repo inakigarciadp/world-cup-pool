@@ -225,6 +225,161 @@ http.route({
 })
 
 http.route({
+  path: '/api/matches',
+  method: 'GET',
+  handler: httpAction(async (ctx, request) => {
+    const payload = await getAccessPayload(request)
+
+    if (payload === null) {
+      return unauthorized(request, clearAccessCookie())
+    }
+
+    const url = new URL(request.url)
+
+    try {
+      const matches = await ctx.runQuery(internal.matches.getMatchesForHttp, {
+        poolId: payload.poolId as Id<'pools'>,
+        participantId: payload.participantId as Id<'participants'>,
+        includePast: url.searchParams.get('includePast') === 'true',
+        now: Date.now(),
+        slug: url.searchParams.get('slug') ?? undefined,
+      })
+
+      return jsonResponse(matches, request)
+    } catch (caught) {
+      return jsonResponse(
+        {
+          error: caught instanceof Error ? caught.message : 'No se han podido cargar los partidos.',
+        },
+        request,
+        400,
+      )
+    }
+  }),
+})
+
+http.route({
+  path: '/api/matches/teams',
+  method: 'POST',
+  handler: httpAction(async (ctx, request) => {
+    const payload = await getAccessPayload(request)
+
+    if (payload === null) {
+      return unauthorized(request, clearAccessCookie())
+    }
+
+    const body = await request.json()
+
+    try {
+      const result = await ctx.runMutation(internal.matches.updateMatchTeamsForHttp, {
+        poolId: payload.poolId as Id<'pools'>,
+        participantId: payload.participantId as Id<'participants'>,
+        matchId: String(body.matchId) as Id<'matches'>,
+        homeTeamId: body.homeTeamId === null ? null : (String(body.homeTeamId) as Id<'teams'>),
+        awayTeamId: body.awayTeamId === null ? null : (String(body.awayTeamId) as Id<'teams'>),
+      })
+
+      return jsonResponse(result, request)
+    } catch (caught) {
+      return jsonResponse(
+        {
+          error:
+            caught instanceof Error ? caught.message : 'No se han podido guardar las selecciones.',
+        },
+        request,
+        400,
+      )
+    }
+  }),
+})
+
+http.route({
+  path: '/api/matches/result',
+  method: 'POST',
+  handler: httpAction(async (ctx, request) => {
+    const payload = await getAccessPayload(request)
+
+    if (payload === null) {
+      return unauthorized(request, clearAccessCookie())
+    }
+
+    const body = await request.json()
+
+    try {
+      const result = await ctx.runMutation(internal.matches.saveMatchResultForHttp, {
+        poolId: payload.poolId as Id<'pools'>,
+        participantId: payload.participantId as Id<'participants'>,
+        matchId: String(body.matchId) as Id<'matches'>,
+        homeGoals: normalizeNullableNumber(body.homeGoals),
+        awayGoals: normalizeNullableNumber(body.awayGoals),
+        penaltyShootoutWinnerTeamId:
+          body.penaltyShootoutWinnerTeamId === null
+            ? null
+            : (String(body.penaltyShootoutWinnerTeamId) as Id<'teams'>),
+      })
+
+      return jsonResponse(result, request)
+    } catch (caught) {
+      return jsonResponse(
+        {
+          error: caught instanceof Error ? caught.message : 'No se ha podido guardar el resultado.',
+        },
+        request,
+        400,
+      )
+    }
+  }),
+})
+
+http.route({
+  path: '/api/matches/goals',
+  method: 'POST',
+  handler: httpAction(async (ctx, request) => {
+    const payload = await getAccessPayload(request)
+
+    if (payload === null) {
+      return unauthorized(request, clearAccessCookie())
+    }
+
+    const body = await request.json()
+
+    try {
+      const result = await ctx.runMutation(internal.matches.replaceMatchGoalsForHttp, {
+        poolId: payload.poolId as Id<'pools'>,
+        participantId: payload.participantId as Id<'participants'>,
+        matchId: String(body.matchId) as Id<'matches'>,
+        goals: Array.isArray(body.goals)
+          ? body.goals.map(
+              (goal: {
+                scoringTeamId?: unknown
+                creditedPlayerId?: unknown
+                isOwnGoal?: unknown
+                minuteLabel?: unknown
+              }) => ({
+                scoringTeamId: String(goal.scoringTeamId) as Id<'teams'>,
+                creditedPlayerId: String(goal.creditedPlayerId) as Id<'eligiblePlayers'>,
+                isOwnGoal: Boolean(goal.isOwnGoal),
+                minuteLabel: goal.minuteLabel === null ? null : String(goal.minuteLabel ?? ''),
+              }),
+            )
+          : [],
+      })
+
+      return jsonResponse(result, request)
+    } catch (caught) {
+      return jsonResponse(
+        {
+          error:
+            caught instanceof Error ? caught.message : 'No se han podido guardar los goleadores.',
+        },
+        request,
+        400,
+      )
+    }
+  }),
+})
+
+http.route({
   path: '/auth/login',
   method: 'OPTIONS',
   handler: httpAction(async (_ctx, request) => optionsResponse(request)),
@@ -246,6 +401,26 @@ http.route({
 })
 http.route({
   path: '/api/entry',
+  method: 'OPTIONS',
+  handler: httpAction(async (_ctx, request) => optionsResponse(request)),
+})
+http.route({
+  path: '/api/matches',
+  method: 'OPTIONS',
+  handler: httpAction(async (_ctx, request) => optionsResponse(request)),
+})
+http.route({
+  path: '/api/matches/teams',
+  method: 'OPTIONS',
+  handler: httpAction(async (_ctx, request) => optionsResponse(request)),
+})
+http.route({
+  path: '/api/matches/result',
+  method: 'OPTIONS',
+  handler: httpAction(async (_ctx, request) => optionsResponse(request)),
+})
+http.route({
+  path: '/api/matches/goals',
   method: 'OPTIONS',
   handler: httpAction(async (_ctx, request) => optionsResponse(request)),
 })
@@ -273,6 +448,21 @@ function jsonResponse(body: unknown, request: Request, status = 200, cookies: st
 
 function unauthorized(request: Request, cookies: string[] = []) {
   return jsonResponse({ error: 'No autorizado.' }, request, 401, cookies)
+}
+
+async function getAccessPayload(request: Request) {
+  const authSecret = getAuthSecret()
+  const accessToken = getCookie(request, ACCESS_COOKIE)
+
+  return accessToken === null ? null : await verifyAuthToken(accessToken, 'access', authSecret)
+}
+
+function normalizeNullableNumber(value: unknown) {
+  if (value === null || value === '') {
+    return null
+  }
+
+  return Number(value)
 }
 
 function optionsResponse(request: Request) {

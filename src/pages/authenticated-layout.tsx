@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, Outlet, useNavigate } from '@tanstack/react-router'
 import {
   CalendarClock,
+  CalendarDays,
   ChevronDown,
   ClipboardList,
   LogOut,
@@ -178,6 +179,7 @@ function BottomNav() {
         <Tab to="/" label="Porra" icon={Trophy} exact />
         <Tab to="/rules" label="Reglas" icon={Sparkles} />
         <Tab to="/entries" label="Apuestas" icon={ClipboardList} />
+        <Tab to="/matches" label="Partidos" icon={CalendarDays} />
       </div>
     </nav>
   )
@@ -189,7 +191,7 @@ function Tab({
   icon: Icon,
   exact = false,
 }: {
-  to: '/' | '/entries' | '/rules'
+  to: '/' | '/entries' | '/matches' | '/rules'
   label: string
   icon: typeof Trophy
   exact?: boolean
