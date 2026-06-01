@@ -2,8 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Check, ListChecks, Save, Search } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Combobox } from '@/components/ui/combobox'
 import { saveEntry, type Overview } from '@/lib/httpApi'
 import { overviewQueryKey, overviewQueryOptions } from '@/lib/overview-query'
@@ -14,50 +12,9 @@ export function EntriesPage() {
   const { overview } = useOverview()
 
   return (
-    <section className="space-y-5">
+    <section className="space-y-7">
       <EntryEditor overview={overview} />
-      <div className="grid gap-4 md:grid-cols-2">
-        {overview.leaderboard.map((entry) => (
-          <Card key={entry.entryId}>
-            <CardHeader>
-              <CardTitle>{entry.participantName}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 text-sm">
-              <div>
-                <p className="text-muted-foreground">Goleadores elegidos</p>
-                <div className="mt-2 space-y-2">
-                  {entry.goalscorerPicks.length === 0 ? (
-                    <p className="font-medium">Sin elegir</p>
-                  ) : (
-                    entry.goalscorerPicks.map((pick) => (
-                      <div
-                        key={`${entry.entryId}-${pick.tierName}-${pick.playerName}`}
-                        className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
-                      >
-                        <span className="text-muted-foreground">{pick.tierName}</span>
-                        <span className="text-right font-medium">
-                          {pick.playerName} · {pick.teamName}
-                        </span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-              <div className="space-y-2">
-                {entry.teamPicks.map((pick) => (
-                  <div
-                    key={`${entry.entryId}-${pick.tierName}-${pick.teamName}`}
-                    className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
-                  >
-                    <span className="text-muted-foreground">{pick.tierName}</span>
-                    <span className="font-medium">{pick.teamName}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <OtherEntries overview={overview} />
     </section>
   )
 }
@@ -99,6 +56,15 @@ function EntryEditor({ overview }: { overview: Overview }) {
   })
   const isLocked = overview.pool.status !== 'open' || overview.pool.entryLockAt <= now
   const tournamentGroups = useMemo(() => getTournamentGroups(overview), [overview])
+  const totalPicks = overview.teamTiers.reduce((acc, tier) => acc + tier.requiredPicks, 0)
+  const pickedTeams = selectedTeamIds.length
+  const pickedGoalscorers = Object.values(goalscorerPickIds).filter(Boolean).length
+  const progress = Math.min(
+    100,
+    Math.round(
+      ((pickedTeams + pickedGoalscorers) / (totalPicks + overview.teamTiers.length)) * 100,
+    ),
+  )
 
   useEffect(() => {
     const timeoutId = window.setTimeout(
@@ -130,82 +96,118 @@ function EntryEditor({ overview }: { overview: Overview }) {
   }
 
   return (
-    <section className="entry-editor space-y-5">
-      <div>
-        <p className="text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">
-          Tu jugada
-        </p>
-        <h2 className="text-2xl font-black">Mi entrada</h2>
-      </div>
+    <section className="space-y-6">
+      <header className="sticker p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="eyebrow text-coral-ink">Tu jugada</p>
+            <h2 className="heading mt-1 text-2xl">Arma tu apuesta</h2>
+            <p className="mt-1 text-sm font-semibold text-ink-soft">
+              {pickedTeams}/{totalPicks} selecciones · {pickedGoalscorers}/
+              {overview.teamTiers.length} goleadores
+            </p>
+          </div>
+          <div
+            className="display-num grid h-16 w-16 place-items-center rounded-2xl bg-coral text-paper shadow-[0_4px_0_var(--coral-ink)]"
+            aria-hidden="true"
+          >
+            {progress}
+          </div>
+        </div>
+        <div
+          className="mt-4 h-2 overflow-hidden rounded-full bg-paper-deep"
+          role="progressbar"
+          aria-valuenow={progress}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <div
+            className="h-full rounded-full bg-coral transition-[width] duration-300"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </header>
+
       {overview.teamTiers.length === 0 ? (
-        <p className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
+        <p className="rounded-2xl border bg-surface px-4 py-3 text-sm text-ink-soft">
           Todavía no hay bombos configurados.
         </p>
       ) : (
         <div className="space-y-4">
-          <div className="flex justify-end">
-            <Button
+          <div className="flex items-center justify-between">
+            <div className="section-label">Selecciones</div>
+            <button
               type="button"
-              variant="outline"
               onClick={() => setShowTournamentGroups((current) => !current)}
+              className="pill"
             >
-              <ListChecks className="size-4" aria-hidden="true" />
+              <ListChecks className="size-3.5" aria-hidden="true" />
               {showTournamentGroups ? 'Ocultar grupos' : 'Ver grupos'}
-            </Button>
+            </button>
           </div>
           {showTournamentGroups ? <TournamentGroups groups={tournamentGroups} /> : null}
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="space-y-4">
             {overview.teamTiers.map((tier) => {
               const tierTeamIds = tier.teams.map((team) => team.id)
               const pickedInTier = selectedTeamIds.filter((id) => tierTeamIds.includes(id)).length
+              const complete = pickedInTier === tier.requiredPicks
 
               return (
-                <div key={tier.id} className="tier-block space-y-3">
-                  <div className="flex items-center justify-between gap-3 text-sm">
-                    <p className="font-black">{tier.name}</p>
-                    <p
-                      className={
-                        pickedInTier === tier.requiredPicks
-                          ? 'pick-counter is-complete'
-                          : 'pick-counter'
-                      }
+                <article key={tier.id} className="tier-card">
+                  <div className="tier-head">
+                    <div className="flex items-center gap-2">
+                      <span className="tier-tag">{tier.name}</span>
+                    </div>
+                    <span
+                      className={`tier-counter ${complete ? 'is-complete' : ''}`}
+                      aria-label={`${pickedInTier} de ${tier.requiredPicks} selecciones`}
                     >
                       {pickedInTier}/{tier.requiredPicks}
-                    </p>
+                    </span>
                   </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {tier.teams.map((team) => (
-                      <button
-                        key={team.id}
-                        type="button"
-                        className={`team-pick ${selectedTeamIds.includes(team.id) ? 'is-selected' : ''}`}
-                        disabled={isLocked}
-                        onClick={() => toggleTeam(team.id, tier.requiredPicks, tierTeamIds)}
-                      >
-                        <span className="text-lg leading-none" aria-hidden="true">
-                          {getFlagEmoji(team.fifaCode)}
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block font-medium">{team.name}</span>
-                          <span className="text-xs opacity-75">Grupo {team.groupCode}</span>
-                        </span>
-                      </button>
-                    ))}
+                  <div className="px-3 pb-4">
+                    <div className="flex flex-wrap gap-2">
+                      {tier.teams.map((team) => (
+                        <button
+                          key={team.id}
+                          type="button"
+                          className={`team-pick ${selectedTeamIds.includes(team.id) ? 'is-selected' : ''}`}
+                          disabled={isLocked}
+                          onClick={() => toggleTeam(team.id, tier.requiredPicks, tierTeamIds)}
+                        >
+                          <span className="team-flag" aria-hidden="true">
+                            {getFlagEmoji(team.fifaCode)}
+                          </span>
+                          <span className="min-w-0 text-left">
+                            <span className="block truncate font-heading text-sm font-extrabold leading-tight">
+                              {team.name}
+                            </span>
+                            <span className="block text-[0.65rem] font-bold uppercase tracking-[0.12em] opacity-70">
+                              Grupo {team.groupCode}
+                            </span>
+                          </span>
+                          {selectedTeamIds.includes(team.id) ? (
+                            <Check className="ml-auto size-4 shrink-0" aria-hidden="true" />
+                          ) : null}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                </article>
               )
             })}
           </div>
         </div>
       )}
-      <div className="space-y-3">
-        <p className="text-sm font-medium">Goleadores elegidos</p>
+
+      <div className="space-y-4">
+        <div className="section-label">Goleadores</div>
         {overview.eligiblePlayers.length === 0 ? (
-          <p className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
+          <p className="rounded-2xl border bg-surface px-4 py-3 text-sm text-ink-soft">
             Todavía no hay goleadores configurados.
           </p>
         ) : (
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="space-y-4">
             {overview.teamTiers.map((tier) => {
               const selectedGoalscorerId = goalscorerPickIds[tier.id] ?? ''
               const selectedGoalscorer =
@@ -221,133 +223,242 @@ function EntryEditor({ overview }: { overview: Overview }) {
               )
 
               return (
-                <div key={tier.id} className="tier-block space-y-3">
-                  <p className="text-sm font-black">{tier.name}</p>
-                  {availableGoalscorers.length === 0 ? (
-                    <p className="rounded-md border px-3 py-2 text-sm text-muted-foreground">
-                      Todavía no hay goleadores en este bombo.
-                    </p>
-                  ) : (
-                    <Combobox.Root
-                      value={selectedGoalscorerId || null}
-                      onValueChange={(value) => {
-                        setGoalscorerPickIds((current) => ({
-                          ...current,
-                          [tier.id]: typeof value === 'string' ? value : '',
-                        }))
-                        setGoalscorerSearchByTier((current) => ({ ...current, [tier.id]: '' }))
-                      }}
-                      inputValue={search}
-                      onInputValueChange={(value) =>
-                        setGoalscorerSearchByTier((current) => ({ ...current, [tier.id]: value }))
-                      }
-                      disabled={isLocked}
-                    >
-                      <div className="relative">
-                        <Search
-                          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                          aria-hidden="true"
-                        />
-                        <Combobox.Input
-                          className="pl-9"
-                          placeholder={
-                            selectedGoalscorer
-                              ? `${selectedGoalscorer.name} · ${selectedGoalscorer.teamName}`
-                              : 'Buscar goleador'
-                          }
-                        />
-                      </div>
-                      <Combobox.Portal>
-                        <Combobox.Positioner sideOffset={6}>
-                          <Combobox.Popup>
-                            {filteredGoalscorers.length === 0 ? (
-                              <Combobox.Empty>No hay goleadores que coincidan.</Combobox.Empty>
-                            ) : (
-                              <Combobox.List>
-                                {filteredGoalscorers.map((player) => (
-                                  <Combobox.Item key={player.id} value={player.id}>
-                                    <span className="text-lg leading-none" aria-hidden="true">
-                                      {getFlagEmoji(player.teamFifaCode)}
-                                    </span>
-                                    <span className="min-w-0 flex-1">
-                                      <span className="block truncate font-medium">
-                                        {player.name}
+                <article key={tier.id} className="tier-card">
+                  <div className="tier-head">
+                    <div className="flex items-center gap-2">
+                      <span className="tier-tag">{tier.name}</span>
+                    </div>
+                    {selectedGoalscorer ? (
+                      <span className="pill pill-mint">
+                        <Check className="size-3.5" aria-hidden="true" />
+                        Elegido
+                      </span>
+                    ) : (
+                      <span className="pill">Sin elegir</span>
+                    )}
+                  </div>
+                  <div className="px-3 pb-4">
+                    {availableGoalscorers.length === 0 ? (
+                      <p className="rounded-2xl border bg-surface px-4 py-3 text-sm text-ink-soft">
+                        Todavía no hay goleadores en este bombo.
+                      </p>
+                    ) : (
+                      <Combobox.Root
+                        value={selectedGoalscorerId || null}
+                        itemToStringLabel={(playerId) => {
+                          const player = overview.eligiblePlayers.find(
+                            (candidate) => candidate.id === playerId,
+                          )
+                          return player ? `${player.name} · ${player.teamName}` : playerId
+                        }}
+                        onValueChange={(value) => {
+                          setGoalscorerPickIds((current) => ({
+                            ...current,
+                            [tier.id]: typeof value === 'string' ? value : '',
+                          }))
+                          setGoalscorerSearchByTier((current) => ({ ...current, [tier.id]: '' }))
+                        }}
+                        inputValue={search}
+                        onInputValueChange={(value) =>
+                          setGoalscorerSearchByTier((current) => ({ ...current, [tier.id]: value }))
+                        }
+                        disabled={isLocked}
+                      >
+                        <div className="goalscorer-input">
+                          {selectedGoalscorer ? (
+                            <span className="team-flag" aria-hidden="true">
+                              {getFlagEmoji(selectedGoalscorer.teamFifaCode)}
+                            </span>
+                          ) : (
+                            <Search className="size-4 shrink-0 text-ink-soft" aria-hidden="true" />
+                          )}
+                          <Combobox.Input
+                            placeholder={
+                              selectedGoalscorer
+                                ? `${selectedGoalscorer.name} · ${selectedGoalscorer.teamName}`
+                                : 'Buscar goleador…'
+                            }
+                          />
+                        </div>
+                        <Combobox.Portal>
+                          <Combobox.Positioner sideOffset={6}>
+                            <Combobox.Popup className="combo-popup">
+                              {filteredGoalscorers.length === 0 ? (
+                                <Combobox.Empty>No hay goleadores que coincidan.</Combobox.Empty>
+                              ) : (
+                                <Combobox.List>
+                                  {filteredGoalscorers.map((player) => (
+                                    <Combobox.Item key={player.id} value={player.id}>
+                                      <span className="team-flag" aria-hidden="true">
+                                        {getFlagEmoji(player.teamFifaCode)}
                                       </span>
-                                      <span className="block truncate text-xs opacity-75">
-                                        {player.teamName} · {player.teamFifaCode} · Grupo{' '}
-                                        {player.groupCode}
+                                      <span className="min-w-0 flex-1">
+                                        <span className="block truncate font-heading text-sm font-extrabold leading-tight">
+                                          {player.name}
+                                        </span>
+                                        <span className="block text-[0.65rem] font-bold uppercase tracking-[0.12em] opacity-70">
+                                          {player.teamName} · {player.teamFifaCode} · Gr{' '}
+                                          {player.groupCode}
+                                        </span>
                                       </span>
-                                    </span>
-                                    {selectedGoalscorerId === player.id ? (
-                                      <Check className="size-4" aria-hidden="true" />
-                                    ) : null}
-                                  </Combobox.Item>
-                                ))}
-                              </Combobox.List>
-                            )}
-                          </Combobox.Popup>
-                        </Combobox.Positioner>
-                      </Combobox.Portal>
-                      {selectedGoalscorer ? (
-                        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <span className="text-lg leading-none" aria-hidden="true">
-                            {getFlagEmoji(selectedGoalscorer.teamFifaCode)}
-                          </span>
-                          Seleccionado:{' '}
-                          <span className="font-medium text-foreground">
-                            {selectedGoalscorer.name}
-                          </span>
-                        </p>
-                      ) : null}
-                    </Combobox.Root>
-                  )}
-                </div>
+                                      {selectedGoalscorerId === player.id ? (
+                                        <Check className="size-4" aria-hidden="true" />
+                                      ) : null}
+                                    </Combobox.Item>
+                                  ))}
+                                </Combobox.List>
+                              )}
+                            </Combobox.Popup>
+                          </Combobox.Positioner>
+                        </Combobox.Portal>
+                        {selectedGoalscorer ? (
+                          <p className="mt-2 inline-flex items-center gap-2 px-1 text-sm text-ink-soft">
+                            <span className="font-heading font-extrabold text-ink">
+                              {selectedGoalscorer.name}
+                            </span>
+                            <span className="text-ink-soft">·</span>
+                            <span>{selectedGoalscorer.teamName}</span>
+                          </p>
+                        ) : null}
+                      </Combobox.Root>
+                    )}
+                  </div>
+                </article>
               )
             })}
           </div>
         )}
       </div>
+
       {saveEntryMutation.error ? (
-        <p className="text-sm text-destructive">
+        <p className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
           {saveEntryMutation.error instanceof Error
             ? saveEntryMutation.error.message
             : 'No se ha podido guardar la entrada.'}
         </p>
       ) : null}
-      <Button
-        className="save-button"
+
+      <button
         type="button"
+        className="save-cta"
         disabled={isLocked || saveEntryMutation.isPending}
         onClick={handleSave}
       >
-        <Save className="size-4" aria-hidden="true" />
-        {saveEntryMutation.isPending ? 'Guardando...' : 'Guardar entrada'}
-      </Button>
+        <Save className="size-5" aria-hidden="true" />
+        {saveEntryMutation.isPending ? 'Guardando…' : 'Guardar entrada'}
+      </button>
+    </section>
+  )
+}
+
+function OtherEntries({ overview }: { overview: Overview }) {
+  const myName = overview.session.participantName
+  const others = overview.leaderboard.filter((entry) => entry.participantName !== myName)
+  if (others.length === 0) return null
+
+  return (
+    <section className="space-y-4">
+      <div className="section-label">La cuadrilla</div>
+      <div className="space-y-3">
+        {others.map((entry) => (
+          <article key={entry.entryId} className="entry-card">
+            <header className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-paper-deep text-sm font-extrabold text-ink">
+                  {getInitials(entry.participantName)}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate font-heading text-sm font-extrabold">
+                    {entry.participantName}
+                  </p>
+                  <p className="text-[0.7rem] font-bold uppercase tracking-[0.12em] text-ink-soft">
+                    {entry.submittedAt ? 'Entrada enviada' : 'Aún sin enviar'}
+                  </p>
+                </div>
+              </div>
+              <span className="display-num text-xl text-coral-ink">
+                {formatScore(entry.currentScore)}
+                <span className="ml-0.5 text-[0.55rem] font-bold opacity-80">pts</span>
+              </span>
+            </header>
+            {entry.teamPicks.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {entry.teamPicks.map((pick) => (
+                  <span
+                    key={`${entry.entryId}-${pick.tierName}-${pick.teamName}`}
+                    className="pick-chip"
+                  >
+                    <span className="text-[0.65rem] font-bold uppercase tracking-[0.12em] text-ink-soft">
+                      {pick.tierName.replace('Bombo ', 'B')}
+                    </span>
+                    {pick.teamName}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {entry.goalscorerPicks.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {entry.goalscorerPicks.map((pick) => (
+                  <span
+                    key={`${entry.entryId}-${pick.tierName}-${pick.playerName}`}
+                    className="pick-chip"
+                  >
+                    <span className="text-[0.65rem] font-bold uppercase tracking-[0.12em] text-ink-soft">
+                      {pick.tierName.replace('Bombo ', 'B')}
+                    </span>
+                    {pick.playerName}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </article>
+        ))}
+      </div>
     </section>
   )
 }
 
 function TournamentGroups({ groups }: { groups: ReturnType<typeof getTournamentGroups> }) {
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+    <div className="sticker-soft grid grid-cols-2 gap-2 p-3">
       {groups.map((group) => (
-        <div key={group.groupCode} className="group-block text-sm">
-          <p className="font-black">Grupo {group.groupCode}</p>
-          <div className="mt-3 space-y-2">
+        <div key={group.groupCode} className="rounded-xl bg-paper-deep/40 p-2 text-xs">
+          <p className="font-heading text-[0.7rem] font-bold uppercase tracking-[0.14em] text-ink-soft">
+            Grupo {group.groupCode}
+          </p>
+          <ul className="mt-1.5 space-y-0.5">
             {group.teams.map((team) => (
-              <div key={team.id} className="flex items-center justify-between gap-3">
-                <span className="flex min-w-0 items-center gap-2">
-                  <span className="text-lg leading-none" aria-hidden="true">
+              <li
+                key={team.id}
+                className="flex items-center justify-between gap-1.5 font-heading text-[0.78rem] font-bold"
+              >
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="text-base leading-none" aria-hidden="true">
                     {getFlagEmoji(team.fifaCode)}
                   </span>
-                  <span className="truncate font-medium">{team.name}</span>
+                  <span className="truncate">{team.name}</span>
                 </span>
-                <span className="shrink-0 text-xs text-muted-foreground">{team.tierName}</span>
-              </div>
+                <span className="text-[0.6rem] font-bold uppercase tracking-[0.1em] text-ink-soft">
+                  {team.tierName.replace('Bombo ', 'B')}
+                </span>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
       ))}
     </div>
   )
+}
+
+function getInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase()
+  return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase()
+}
+
+function formatScore(value: number) {
+  return new Intl.NumberFormat('es-ES', {
+    maximumFractionDigits: 2,
+  }).format(value)
 }

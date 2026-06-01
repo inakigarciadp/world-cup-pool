@@ -1,10 +1,10 @@
 import { CircleHelp, Flag, Goal, Medal, Trophy } from 'lucide-react'
 
 const teamRules = [
-  '1 selección del Bombo 1',
-  '2 selecciones del Bombo 2',
-  '2 selecciones del Bombo 3',
-  '2 selecciones del Bombo 4',
+  ['Bombo 1', '1 selección'],
+  ['Bombo 2', '2 selecciones'],
+  ['Bombo 3', '2 selecciones'],
+  ['Bombo 4', '2 selecciones'],
 ]
 
 const multipliers = [
@@ -15,135 +15,144 @@ const multipliers = [
 ]
 
 const matchPoints = [
-  ['Victoria en partido', '3 pts.'],
-  ['Empate', '1 pt.'],
-  ['Derrota', '0 pts.'],
-  ['Victoria en tanda de penaltis', '1 pt. total'],
-  ['Derrota en tanda de penaltis', '0 pts.'],
+  ['Victoria en partido', '3 pts'],
+  ['Empate', '1 pt'],
+  ['Derrota', '0 pts'],
+  ['Victoria en penaltis', '1 pt total'],
+  ['Derrota en penaltis', '0 pts'],
 ]
 
 const stageBonuses = [
-  ['Dieciseisavos', '+5 pts.'],
-  ['Octavos', '+7,5 pts.'],
-  ['Cuartos', '+10 pts.'],
-  ['Semifinales', '+15 pts.'],
-  ['Campeón del Mundial', '+20 pts.'],
+  ['Dieciseisavos', '+5'],
+  ['Octavos', '+7,5'],
+  ['Cuartos', '+10'],
+  ['Semifinales', '+15'],
+  ['Campeón', '+20'],
 ]
 
 const goalscorerPoints = [
-  ['Gol oficial del jugador', '1 pt.'],
-  ['Máximo goleador del torneo', '+10 pts.'],
+  ['Gol oficial', '1 pt'],
+  ['Pichichi del torneo', '+10'],
 ]
 
 export function RulesPage() {
   return (
-    <section className="rules-page space-y-6">
-      <div className="rules-hero">
-        <p className="text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">
-          Cómo se juega
+    <section className="space-y-6">
+      <header className="rules-hero">
+        <p className="eyebrow opacity-80">Cómo se juega</p>
+        <h1>Una porra para sufrir cada jornada.</h1>
+        <p>
+          Antes de que cierre la entrada, eliges 7 selecciones y 4 goleadores. A partir de ahí, cada
+          partido suma, cada ronda pesa y los bombos modestos pueden cambiar la clasificación.
         </p>
-        <h2 className="mt-2 text-3xl font-black tracking-normal sm:text-4xl">
-          Una porra para sufrir cada jornada
-        </h2>
-        <p className="mt-3 max-w-2xl text-base leading-7 text-muted-foreground">
-          Antes de que cierre la entrada, haces tus apuestas: siete selecciones y cuatro goleadores.
-          A partir de ahí, cada partido suma, cada ronda pesa y los bombos modestos pueden cambiar
-          la clasificación.
-        </p>
-      </div>
+      </header>
 
-      <div className="rules-story-grid">
-        <article className="rules-block">
-          <div className="rules-icon">
-            <Flag className="size-5" aria-hidden="true" />
+      <article className="rule-block">
+        <div className="rule-icon">
+          <Flag className="size-5" aria-hidden="true" />
+        </div>
+        <h3>Tu equipo para el Mundial</h3>
+        <p>
+          La entrada combina favoritos y apuestas con más riesgo. Cuanto más bajo es el bombo, más
+          multiplica lo que consigas con esa selección.
+        </p>
+        <div className="rule-list">
+          {teamRules.map(([tier, picks]) => (
+            <div key={tier} className="rule-list-row">
+              <span>{tier}</span>
+              <span className="v">{picks}</span>
+            </div>
+          ))}
+        </div>
+      </article>
+
+      <article className="rule-block">
+        <div className="rule-icon" style={{ background: 'var(--mint)', color: 'var(--mint-ink)' }}>
+          <Goal className="size-5" aria-hidden="true" />
+        </div>
+        <h3>Cuatro goleadores, uno por bombo</h3>
+        <p>
+          También eliges un goleador de cada bombo. No tiene que jugar en una de tus selecciones:
+          vas a por olfato. Sus goles suman con el multiplicador de su bombo.
+        </p>
+        <p className="mt-3 text-xs font-semibold italic text-ink-soft">
+          Cuentan goles oficiales en partido (incluido penaltis durante el juego). No cuentan tandas
+          ni goles en propia puerta.
+        </p>
+      </article>
+
+      <div className="grid gap-4">
+        <article className="rule-block">
+          <div className="rule-icon" style={{ background: 'var(--sun)', color: 'var(--sun-ink)' }}>
+            <Medal className="size-5" aria-hidden="true" />
           </div>
-          <h3>Tu equipo para el Mundial</h3>
-          <p>
-            La entrada combina favoritos y apuestas con más riesgo. Los bombos vienen del sorteo:
-            cuanto más bajo es el bombo, más multiplica lo que consigas con esa selección.
-          </p>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            {teamRules.map((rule) => (
-              <span key={rule} className="rules-chip">
-                {rule}
-              </span>
+          <h3>Los partidos dan ritmo</h3>
+          <p>Primero se mira el resultado de cada una de tus selecciones.</p>
+          <div className="rule-list">
+            {matchPoints.map(([label, value]) => (
+              <div key={label} className="rule-list-row">
+                <span>{label}</span>
+                <span className="v">{value}</span>
+              </div>
             ))}
           </div>
         </article>
 
-        <article className="rules-block">
-          <div className="rules-icon">
-            <Goal className="size-5" aria-hidden="true" />
+        <article className="rule-block">
+          <div className="rule-icon" style={{ background: 'var(--coral)', color: 'var(--paper)' }}>
+            <Trophy className="size-5" aria-hidden="true" />
           </div>
-          <h3>Cuatro goleadores, uno por bombo</h3>
-          <p>
-            También eliges un goleador de cada bombo. No tiene por qué jugar en una de tus
-            selecciones: aquí vas a por olfato. Sus goles suman con el multiplicador de su bombo.
-          </p>
-          <p className="rules-note">
-            Cuentan los goles oficiales en partido, incluidos penaltis durante el juego. No cuentan
-            tandas de penaltis ni goles en propia puerta.
-          </p>
-        </article>
-      </div>
-
-      <div className="rules-score-strip">
-        <article>
-          <Medal className="size-5" aria-hidden="true" />
-          <h3>Los partidos dan ritmo</h3>
-          <p>Primero se mira el resultado de cada una de tus selecciones.</p>
-          <RulesPointList items={matchPoints} />
-        </article>
-        <article>
-          <Trophy className="size-5" aria-hidden="true" />
           <h3>Las rondas dan golpes grandes</h3>
           <p>Cuando una selección confirma una ronda, añade un bonus una sola vez.</p>
-          <RulesPointList items={stageBonuses} />
+          <div className="rule-list">
+            {stageBonuses.map(([label, value]) => (
+              <div key={label} className="rule-list-row">
+                <span>{label}</span>
+                <span className="v">{value}</span>
+              </div>
+            ))}
+          </div>
         </article>
-        <article>
-          <CircleHelp className="size-5" aria-hidden="true" />
+
+        <article className="rule-block">
+          <div className="rule-icon" style={{ background: 'var(--ink)', color: 'var(--paper)' }}>
+            <CircleHelp className="size-5" aria-hidden="true" />
+          </div>
           <h3>El pichichi tiene premio</h3>
           <p>
             Los goleadores suman durante todo el torneo, aunque su selección no sea una de tus
-            siete.
+            siete. Cada gol se multiplica por el bombo del jugador.
           </p>
-          <RulesPointList items={goalscorerPoints} />
+          <div className="rule-list">
+            {goalscorerPoints.map(([label, value]) => (
+              <div key={label} className="rule-list-row">
+                <span>{label}</span>
+                <span className="v">{value}</span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-xs font-semibold italic text-ink-soft">
+            El bonus del pichichi del torneo es plano: no recibe el multiplicador del bombo.
+          </p>
         </article>
       </div>
 
-      <section className="rules-multipliers">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">
-            Multiplicadores
-          </p>
-          <h3>Elegir un bombo bajo puede salir caro... o genial</h3>
-        </div>
-        <div className="rules-multiplier-grid">
+      <section className="sticker p-5">
+        <p className="eyebrow text-coral-ink">Multiplicadores</p>
+        <h3 className="heading mt-1 text-xl">Elegir un bombo bajo puede salir caro… o genial.</h3>
+        <div className="rule-list mt-4">
           {multipliers.map(([tier, multiplier]) => (
-            <div key={tier} className="rules-multiplier">
+            <div key={tier} className="rule-list-row">
               <span>{tier}</span>
-              <strong>{multiplier}</strong>
+              <span className="v">{multiplier}</span>
             </div>
           ))}
         </div>
-        <p className="text-sm leading-6 text-muted-foreground">
+        <p className="mt-4 text-sm leading-6 text-ink-soft">
           La clasificación suma todo: selecciones, goleadores y bonus. Por eso pueden aparecer
           decimales como 4,5 u 8,75 puntos.
         </p>
       </section>
     </section>
-  )
-}
-
-function RulesPointList({ items }: { items: string[][] }) {
-  return (
-    <dl className="rules-point-list">
-      {items.map(([label, value]) => (
-        <div key={label} className="rules-point-row">
-          <dt>{label}</dt>
-          <dd>{value}</dd>
-        </div>
-      ))}
-    </dl>
   )
 }

@@ -3,13 +3,16 @@ import type { Overview } from '@/lib/httpApi'
 export function getTournamentGroups(overview: Overview) {
   const groups = new Map<
     string,
-    Array<Overview['teamTiers'][number]['teams'][number] & { tierName: string }>
+    Array<Overview['teamTiers'][number]['teams'][number] & { tierName: string; tierOrder: number }>
   >()
 
-  for (const tier of overview.teamTiers) {
+  for (const [tierIndex, tier] of overview.teamTiers.entries()) {
     for (const team of tier.teams) {
       const groupCode = team.groupCode || '?'
-      groups.set(groupCode, [...(groups.get(groupCode) ?? []), { ...team, tierName: tier.name }])
+      groups.set(groupCode, [
+        ...(groups.get(groupCode) ?? []),
+        { ...team, tierName: tier.name, tierOrder: tierIndex },
+      ])
     }
   }
 
@@ -17,7 +20,9 @@ export function getTournamentGroups(overview: Overview) {
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([groupCode, teams]) => ({
       groupCode,
-      teams: teams.sort((left, right) => left.name.localeCompare(right.name)),
+      teams: teams.sort(
+        (left, right) => left.tierOrder - right.tierOrder || left.name.localeCompare(right.name),
+      ),
     }))
 }
 
