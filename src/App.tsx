@@ -31,7 +31,7 @@ export function LoginShell({ children }: { children: ReactNode }) {
         <div className="mx-auto flex size-11 rotate-[-4deg] items-center justify-center rounded-lg border-2 border-foreground bg-primary text-primary-foreground shadow-[4px_4px_0_var(--foreground)]">
           <Trophy className="size-5" aria-hidden="true" />
         </div>
-        <h1 className="text-3xl font-black tracking-normal">Porra del Mundial</h1>
+        <h1 className="text-3xl font-black tracking-normal">Porra TARAVERO</h1>
       </div>
       <Card className="login-card">
         <CardContent className="space-y-4 pt-2">{children}</CardContent>
