@@ -46,7 +46,8 @@ export type Overview = {
     points: number
   }>
   leaderboard: Array<{
-    entryId: string
+    entryId: string | null
+    participantId: string
     participantName: string
     goalscorerPicks: Array<{
       tierName: string

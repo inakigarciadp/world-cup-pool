@@ -15,6 +15,7 @@ export function LeaderboardPage() {
         myName={myName}
         myRank={myRank + 1}
         myScore={myEntry?.currentScore ?? 0}
+        hasEntry={myEntry?.entryId != null}
         submitted={myEntry?.submittedAt != null}
       />
 
@@ -31,7 +32,10 @@ export function LeaderboardPage() {
               const rank = index + 4
               const isMe = entry.participantName === myName
               return (
-                <li key={entry.entryId} className={`leaderboard-row ${isMe ? 'is-me' : ''}`}>
+                <li
+                  key={entry.entryId ?? entry.participantId}
+                  className={`leaderboard-row ${isMe ? 'is-me' : ''}`}
+                >
                   <span className="rank-circle">{rank}</span>
                   <span className="min-w-0">
                     <span className="block truncate font-heading text-sm font-bold">
@@ -42,13 +46,10 @@ export function LeaderboardPage() {
                         </span>
                       ) : null}
                     </span>
-                    <span className="block text-[0.7rem] font-semibold uppercase tracking-[0.12em] opacity-60">
-                      {entry.submittedAt ? 'Entrada enviada' : 'Pendiente'}
-                    </span>
                   </span>
                   <span className="leaderboard-score">
-                    {formatScore(entry.currentScore)}
-                    <small>pts</small>
+                    {formatLeaderboardScore(entry)}
+                    {entry.entryId != null ? <small>pts</small> : null}
                   </span>
                 </li>
               )
@@ -73,11 +74,13 @@ function HeroCard({
   myName,
   myRank,
   myScore,
+  hasEntry,
   submitted,
 }: {
   myName: string
   myRank: number
   myScore: number
+  hasEntry: boolean
   submitted: boolean
 }) {
   return (
@@ -92,8 +95,8 @@ function HeroCard({
           : 'Aún no has enviado tu entrada.'}
       </p>
       <div className="hero-score">
-        <span className="hero-score-num">{formatScore(myScore)}</span>
-        <span className="hero-score-unit">puntos</span>
+        <span className="hero-score-num">{hasEntry ? formatScore(myScore) : '-'}</span>
+        {hasEntry ? <span className="hero-score-unit">puntos</span> : null}
       </div>
       <div className="hero-sticker" aria-hidden="true">
         {myRank > 0 ? `#${myRank}` : '—'}
@@ -116,7 +119,11 @@ function Podium({ top, myName }: { top: Overview['leaderboard']; myName: string 
         }
         const isMe = entry.participantName === myName
         return (
-          <div key={entry.entryId} className="podium-step" data-place={topIndex + 1}>
+          <div
+            key={entry.entryId ?? entry.participantId}
+            className="podium-step"
+            data-place={topIndex + 1}
+          >
             <span className="podium-place" aria-label={labels[slot]}>
               {topIndex + 1}
             </span>
@@ -132,8 +139,10 @@ function Podium({ top, myName }: { top: Overview['leaderboard']; myName: string 
               </p>
             </div>
             <p className="podium-score">
-              {formatScore(entry.currentScore)}
-              <span className="ml-1 text-[0.55rem] font-bold opacity-80">pts</span>
+              {formatLeaderboardScore(entry)}
+              {entry.entryId != null ? (
+                <span className="ml-1 text-[0.55rem] font-bold opacity-80">pts</span>
+              ) : null}
             </p>
           </div>
         )
@@ -157,4 +166,8 @@ function formatScore(value: number) {
   return new Intl.NumberFormat('es-ES', {
     maximumFractionDigits: 2,
   }).format(value)
+}
+
+function formatLeaderboardScore(entry: Overview['leaderboard'][number]) {
+  return entry.entryId === null ? '-' : formatScore(entry.currentScore)
 }

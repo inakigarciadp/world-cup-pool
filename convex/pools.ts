@@ -9,7 +9,8 @@ const DEMO_SLUG = 'world-cup-2026'
 const DEFAULT_ENTRY_LOCK_AT = Date.UTC(2026, 5, 11, 19, 0, 0)
 
 type EntryOverview = {
-  entryId: Id<'entries'>
+  entryId: Id<'entries'> | null
+  participantId: Id<'participants'>
   participantName: string
   goalscorerPicks: Array<{
     tierName: string
@@ -143,14 +144,12 @@ export const getAuthenticatedOverview = internalQuery({
       .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
       .take(500)
 
-    const participantsById = new Map(
-      participants.map((participant) => [participant._id, participant]),
-    )
     const tiersById = new Map(tiers.map((tier) => [tier._id, tier]))
     const teamsById = new Map(teams.map((team) => [team._id, team]))
     const teamsByName = new Map(teams.map((team) => [team.name, team]))
     const teamsByCode = new Map(teams.map((team) => [team.fifaCode, team]))
     const eligiblePlayersById = new Map(eligiblePlayers.map((player) => [player._id, player]))
+    const entriesByParticipantId = new Map(entries.map((entry) => [entry.participantId, entry]))
     const picksByEntryId = new Map<Id<'entries'>, Doc<'entryTeamPicks'>[]>()
     const goalscorerPicksByEntryId = new Map<Id<'entries'>, Doc<'entryGoalscorerPicks'>[]>()
 
@@ -166,9 +165,11 @@ export const getAuthenticatedOverview = internalQuery({
       goalscorerPicksByEntryId.set(pick.entryId, existing)
     }
 
-    const entryOverviews: EntryOverview[] = entries.map((entry) => {
-      const participant = participantsById.get(entry.participantId)
-      const goalscorerPicks = (goalscorerPicksByEntryId.get(entry._id) ?? [])
+    const entryOverviews: EntryOverview[] = participants.map((participant) => {
+      const entry = entriesByParticipantId.get(participant._id) ?? null
+      const goalscorerPicks = (
+        entry === null ? [] : (goalscorerPicksByEntryId.get(entry._id) ?? [])
+      )
         .map((pick) => {
           const tier = tiersById.get(pick.tierId)
           const player = eligiblePlayersById.get(pick.eligiblePlayerId)
@@ -185,7 +186,7 @@ export const getAuthenticatedOverview = internalQuery({
             left.sortOrder - right.sortOrder || left.playerName.localeCompare(right.playerName),
         )
         .map(({ tierName, playerName, teamName }) => ({ tierName, playerName, teamName }))
-      const teamPicks = (picksByEntryId.get(entry._id) ?? [])
+      const teamPicks = (entry === null ? [] : (picksByEntryId.get(entry._id) ?? []))
         .map((pick) => {
           const tier = tiersById.get(pick.tierId)
           const team = teamsById.get(pick.teamId)
@@ -203,12 +204,13 @@ export const getAuthenticatedOverview = internalQuery({
         .map(({ tierName, teamName }) => ({ tierName, teamName }))
 
       return {
-        entryId: entry._id,
-        participantName: participant?.displayName ?? 'Unknown participant',
+        entryId: entry?._id ?? null,
+        participantId: participant._id,
+        participantName: participant.displayName,
         goalscorerPicks,
         teamPicks,
-        currentScore: entry.currentScore,
-        submittedAt: entry.submittedAt,
+        currentScore: entry?.currentScore ?? 0,
+        submittedAt: entry?.submittedAt ?? null,
       }
     })
     const currentEntry =
@@ -262,6 +264,7 @@ export const getAuthenticatedOverview = internalQuery({
       })),
       leaderboard: entryOverviews.sort(
         (left, right) =>
+          Number(right.entryId !== null) - Number(left.entryId !== null) ||
           right.currentScore - left.currentScore ||
           left.participantName.localeCompare(right.participantName),
       ),

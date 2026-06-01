@@ -363,7 +363,7 @@ function OtherEntries({ overview }: { overview: Overview }) {
       <div className="section-label">La cuadrilla</div>
       <div className="space-y-3">
         {others.map((entry) => (
-          <article key={entry.entryId} className="entry-card">
+          <article key={entry.entryId ?? entry.participantId} className="entry-card">
             <header className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2.5">
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-paper-deep text-sm font-extrabold text-ink">
