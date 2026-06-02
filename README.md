@@ -24,6 +24,8 @@ pnpm dev:convex
 
 The first Convex run prompts you to sign in with GitHub, create or select a Convex project, and writes the deployment values to `.env.local`. Vite reads the Convex client URL from `VITE_CONVEX_URL` and the HTTP action URL from `VITE_CONVEX_SITE_URL`.
 
+Local development calls the Convex HTTP action URL directly. Production is different: the Vite bundle calls `/auth/*` and `/api/*` on the Vercel origin, and `vercel.json` proxies those paths to the production Convex site URL so browser auth cookies stay first-party.
+
 Set the Convex auth environment variables before using participant login:
 
 ```bash
@@ -55,6 +57,27 @@ The first production deploy uses Vercel for the Vite frontend and the Convex pro
    ```
 
    Do not manually set `VITE_CONVEX_URL` or `VITE_CONVEX_SITE_URL` in Vercel. The Convex deploy command injects both values into the Vite build.
+
+   Keep `vercel.json` pointed at the production Convex site deployment:
+
+   ```json
+   {
+     "$schema": "https://openapi.vercel.sh/vercel.json",
+     "rewrites": [
+       {
+         "source": "/auth/:path*",
+         "destination": "https://colorless-bandicoot-167.eu-west-1.convex.site/auth/:path*"
+       },
+       {
+         "source": "/api/:path*",
+         "destination": "https://colorless-bandicoot-167.eu-west-1.convex.site/api/:path*"
+       },
+       { "source": "/(.*)", "destination": "/index.html" }
+     ]
+   }
+   ```
+
+   This same-origin proxy is required for reliable login on iPhone browsers. Safari and Chrome on iPhone both use WebKit and can reject the cross-site cookie flow when the frontend calls `*.convex.site` directly.
 
 5. Add the production Convex deploy key to Vercel.
 
@@ -115,14 +138,7 @@ The first production deploy uses Vercel for the Vite frontend and the Convex pro
 
     Open the Vercel URL, log in with a participant from `data/users.csv`, and check the Convex production dashboard for expected rows in `pools`, `participants`, `teams`, `teamTiers`, `eligiblePlayers`, and `matches`.
 
-If direct visits to nested frontend routes such as `/entries` return a Vercel 404, add a SPA fallback with `vercel.json`:
-
-```json
-{
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
-}
-```
+The final rewrite in `vercel.json` is the SPA fallback. Keep it after the `/auth/*` and `/api/*` rewrites so nested frontend routes such as `/entries` work without swallowing backend requests.
 
 ## Scripts
 
@@ -147,3 +163,5 @@ If direct visits to nested frontend routes such as `/entries` return a Vercel 40
 ## Notes
 
 The app uses custom participant auth rather than Convex Auth. PINs are hashed before they are stored in Convex, and browser sessions are held in `HttpOnly` cookies containing short-lived access JWTs plus rotating refresh JWTs.
+
+In local dev these cookies are set by the dev Convex site URL from `.env.local`. In production they are set through Vercel's same-origin proxy to the production Convex site URL, currently `https://colorless-bandicoot-167.eu-west-1.convex.site`.

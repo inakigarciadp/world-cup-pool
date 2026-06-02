@@ -1,4 +1,6 @@
-const API_URL = import.meta.env.VITE_CONVEX_SITE_URL ?? import.meta.env.VITE_CONVEX_URL
+const API_URL = import.meta.env.PROD
+  ? ''
+  : (import.meta.env.VITE_CONVEX_SITE_URL ?? import.meta.env.VITE_CONVEX_URL)
 let refreshPromise: Promise<boolean> | null = null
 
 export type Overview = {
