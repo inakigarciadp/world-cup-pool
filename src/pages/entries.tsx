@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { CalendarClock, Check, ListChecks, Save, Search } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Combobox } from '@/components/ui/combobox'
 import { saveEntry, type Overview } from '@/lib/httpApi'
@@ -52,6 +53,16 @@ function EntryEditor({ overview }: { overview: Overview }) {
       if (nextOverview) {
         queryClient.setQueryData(overviewQueryKey, nextOverview)
       }
+
+      toast.success('Entrada guardada', {
+        description: 'Tu apuesta se ha actualizado correctamente.',
+      })
+    },
+    onError: (error) => {
+      toast.error('No se ha podido guardar', {
+        description:
+          error instanceof Error ? error.message : 'Inténtalo de nuevo en unos segundos.',
+      })
     },
   })
   const isLocked = overview.pool.status !== 'open' || overview.pool.entryLockAt <= now
@@ -336,14 +347,6 @@ function EntryEditor({ overview }: { overview: Overview }) {
           </div>
         )}
       </div>
-
-      {saveEntryMutation.error ? (
-        <p className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
-          {saveEntryMutation.error instanceof Error
-            ? saveEntryMutation.error.message
-            : 'No se ha podido guardar la entrada.'}
-        </p>
-      ) : null}
 
       <button
         type="button"

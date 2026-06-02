@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Trash2,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 import {
   replaceMatchGoals,
@@ -274,8 +275,16 @@ function AdminMatchEditor({ match, payload }: { match: Match; payload: MatchesPa
     setGoalDrafts(toGoalDrafts(match))
   }, [match])
 
-  const onMutationSuccess = async () => {
+  const onMutationSuccess = async (successMessage: string) => {
     await queryClient.invalidateQueries({ queryKey: ['matches'] })
+    toast.success(successMessage, {
+      description: 'Los cambios se han guardado correctamente.',
+    })
+  }
+  const onMutationError = (error: Error) => {
+    toast.error('No se han podido guardar los cambios', {
+      description: error.message,
+    })
   }
   const teamsMutation = useMutation({
     mutationFn: () =>
@@ -284,7 +293,8 @@ function AdminMatchEditor({ match, payload }: { match: Match; payload: MatchesPa
         homeTeamId: homeTeamId || null,
         awayTeamId: awayTeamId || null,
       }),
-    onSuccess: onMutationSuccess,
+    onSuccess: () => onMutationSuccess('Selecciones guardadas'),
+    onError: onMutationError,
   })
   const resultMutation = useMutation({
     mutationFn: () =>
@@ -294,7 +304,8 @@ function AdminMatchEditor({ match, payload }: { match: Match; payload: MatchesPa
         awayGoals: awayGoals === '' ? null : Number(awayGoals),
         penaltyShootoutWinnerTeamId: penaltyWinnerTeamId || null,
       }),
-    onSuccess: onMutationSuccess,
+    onSuccess: () => onMutationSuccess('Resultado guardado'),
+    onError: onMutationError,
   })
   const goalsMutation = useMutation({
     mutationFn: () =>
@@ -309,7 +320,8 @@ function AdminMatchEditor({ match, payload }: { match: Match; payload: MatchesPa
             minuteLabel: goal.minuteLabel.trim() || null,
           })),
       }),
-    onSuccess: onMutationSuccess,
+    onSuccess: () => onMutationSuccess('Goleadores guardados'),
+    onError: onMutationError,
   })
   const clearResultMutation = useMutation({
     mutationFn: () =>
@@ -319,10 +331,9 @@ function AdminMatchEditor({ match, payload }: { match: Match; payload: MatchesPa
         awayGoals: null,
         penaltyShootoutWinnerTeamId: null,
       }),
-    onSuccess: onMutationSuccess,
+    onSuccess: () => onMutationSuccess('Resultado borrado'),
+    onError: onMutationError,
   })
-  const mutationError =
-    teamsMutation.error ?? resultMutation.error ?? goalsMutation.error ?? clearResultMutation.error
   const canAddGoal = resolvedTeamIds.length > 0 && playerOptions.length > 0
 
   function addGoal() {
@@ -531,14 +542,6 @@ function AdminMatchEditor({ match, payload }: { match: Match; payload: MatchesPa
             {goalsMutation.isPending ? 'Guardando…' : 'Guardar goleadores'}
           </button>
         </section>
-
-        {mutationError ? (
-          <p className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
-            {mutationError instanceof Error
-              ? mutationError.message
-              : 'No se han guardado los cambios.'}
-          </p>
-        ) : null}
       </div>
     </details>
   )

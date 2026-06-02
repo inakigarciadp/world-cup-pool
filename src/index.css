@@ -1641,6 +1641,112 @@
       width: 100%;
     }
   }
+
+  /* Sonner toasts — paper sticker with type-colored left stripe and wash */
+  .toast {
+    --toast-stripe: oklch(0.22 0.032 55 / 0.4);
+    --toast-wash: transparent;
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    width: min(20rem, calc(100vw - 2rem));
+    padding: 0.875rem 0.875rem 0.875rem 1.4rem;
+    background: linear-gradient(var(--toast-wash), var(--toast-wash)), var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--hairline);
+    border-radius: 1.25rem;
+    box-shadow:
+      inset 4px 0 0 var(--toast-stripe),
+      var(--shadow-sticker);
+    font-family: var(--font-sans);
+  }
+  .toast[data-type='success'] {
+    --toast-stripe: var(--mint-ink);
+    --toast-wash: oklch(0.87 0.085 168 / 0.18);
+  }
+  .toast[data-type='error'] {
+    --toast-stripe: var(--coral-deep);
+    --toast-wash: oklch(0.69 0.155 33 / 0.15);
+  }
+  .toast[data-type='info'] {
+    --toast-stripe: var(--coral-ink);
+    --toast-wash: oklch(0.84 0.12 35 / 0.18);
+  }
+  .toast[data-type='warning'] {
+    --toast-stripe: var(--sun-ink);
+    --toast-wash: oklch(0.88 0.125 82 / 0.22);
+  }
+  .toast-title {
+    font-family: var(--font-heading);
+    font-weight: 800;
+    font-size: 0.95rem;
+    line-height: 1.15;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+  .toast-description {
+    font-family: var(--font-sans);
+    font-size: 0.825rem;
+    line-height: 1.4;
+    color: var(--ink-soft);
+    margin-top: 0.2rem;
+  }
+  .toast-icon {
+    flex-shrink: 0;
+    margin-top: 0.0625rem;
+  }
+  .toast-action-button {
+    font-family: var(--font-heading);
+    font-weight: 800;
+    font-size: 0.75rem;
+    letter-spacing: 0.01em;
+    padding: 0.4rem 0.875rem;
+    border-radius: 999px;
+    background: var(--coral);
+    color: var(--paper);
+    box-shadow:
+      0 1px 0 oklch(0.22 0.032 55 / 0.08),
+      0 4px 0 var(--coral-ink);
+    transition: transform 120ms ease;
+  }
+  .toast-action-button:hover {
+    transform: translateY(1px);
+  }
+  .toast-cancel-button {
+    font-family: var(--font-heading);
+    font-weight: 800;
+    font-size: 0.75rem;
+    letter-spacing: 0.01em;
+    padding: 0.4rem 0.875rem;
+    border-radius: 999px;
+    background: var(--paper-deep);
+    color: var(--ink-soft);
+  }
+  .toast-close-button {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: var(--paper-deep);
+    color: var(--ink-soft);
+    transition:
+      background 120ms ease,
+      color 120ms ease;
+  }
+  .toast-close-button:hover {
+    background: var(--coral);
+    color: var(--paper);
+  }
+  .toast-close-button svg {
+    width: 0.8125rem;
+    height: 0.8125rem;
+  }
 }
 
 @layer utilities {
