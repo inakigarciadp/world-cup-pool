@@ -1,3 +1,5 @@
+import { Link } from '@tanstack/react-router'
+
 import type { Overview } from '@/lib/httpApi'
 import { useOverview } from '@/lib/overview-context'
 
@@ -11,6 +13,8 @@ export function LeaderboardPage() {
 
   return (
     <section className="space-y-6">
+      <HeroNav />
+
       <HeroCard
         myName={myName}
         myRank={myRank + 1}
@@ -67,6 +71,22 @@ export function LeaderboardPage() {
         </div>
       ) : null}
     </section>
+  )
+}
+
+function HeroNav() {
+  return (
+    <nav className="hero-nav" aria-label="Atajos principales">
+      <Link to="/rules" className="hero-nav-btn">
+        Las reglas
+      </Link>
+      <Link to="/entries" className="hero-nav-btn">
+        Haz tu porra
+      </Link>
+      <Link to="/matches" className="hero-nav-btn">
+        Los partidos
+      </Link>
+    </nav>
   )
 }
 

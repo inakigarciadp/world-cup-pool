@@ -641,6 +641,64 @@
     padding: 0.25rem 1rem var(--bottom-nav-reserved-space);
   }
 
+  .hero-nav {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.55rem;
+  }
+
+  .hero-nav-btn {
+    position: relative;
+    display: inline-flex;
+    min-height: 3rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.85rem;
+    background: linear-gradient(155deg, oklch(0.91 0.105 84) 0%, var(--sun) 100%);
+    color: var(--sun-ink);
+    font-family: var(--font-heading);
+    font-size: 0.78rem;
+    font-weight: 800;
+    line-height: 1.05;
+    text-align: center;
+    text-decoration: none;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.65rem 0.45rem;
+    transition:
+      transform 150ms ease,
+      background-color 150ms ease;
+    overflow: hidden;
+  }
+
+  .hero-nav-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(oklch(0.32 0.07 65 / 0.14) 1px, transparent 1px);
+    background-size: 10px 10px;
+    pointer-events: none;
+    mask-image: linear-gradient(160deg, black 0%, transparent 80%);
+    -webkit-mask-image: linear-gradient(160deg, black 0%, transparent 80%);
+  }
+
+  .hero-nav-btn > * {
+    position: relative;
+  }
+
+  .hero-nav-btn:hover {
+    background: linear-gradient(155deg, oklch(0.93 0.115 84) 0%, oklch(0.86 0.13 78) 100%);
+  }
+
+  .hero-nav-btn:active {
+    transform: translateY(1px);
+  }
+
+  .hero-nav-btn:focus-visible {
+    outline: 3px solid var(--sun);
+    outline-offset: 3px;
+  }
+
   .hero-card {
     position: relative;
     border-radius: 1.75rem;
