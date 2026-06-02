@@ -53,7 +53,7 @@ const convexArgs = [
   JSON.stringify(args),
   '--deployment',
   options.deployment,
-  '--push',
+  ...(options.deployment === 'dev' ? ['--push'] : []),
 ]
 
 const result = spawnSync('pnpm', convexArgs, { stdio: 'inherit' })

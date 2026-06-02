@@ -43,7 +43,7 @@ const commandArgs = [
   args,
   '--deployment',
   deployment,
-  '--push',
+  ...(deployment === 'dev' ? ['--push'] : []),
 ]
 
 const child = spawn('pnpm', commandArgs, {
