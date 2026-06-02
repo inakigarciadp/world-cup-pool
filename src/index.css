@@ -1008,6 +1008,39 @@
     background: var(--coral-ink);
     transition: width 300ms ease;
   }
+  .entry-lock-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-top: -0.35rem;
+    border-radius: 1.2rem;
+    border: 1px solid oklch(0.32 0.07 65 / 0.18);
+    background:
+      radial-gradient(18rem 8rem at 100% 100%, oklch(0.69 0.155 33 / 0.18), transparent 65%),
+      linear-gradient(145deg, oklch(0.94 0.055 48) 0%, oklch(0.985 0.018 78) 100%);
+    color: var(--sun-ink);
+    box-shadow: var(--shadow-soft);
+    padding: 0.8rem 0.9rem;
+    font-family: var(--font-heading);
+    font-size: 0.86rem;
+    font-weight: 700;
+    line-height: 1.35;
+  }
+  .entry-lock-notice-icon {
+    display: grid;
+    place-items: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    flex: 0 0 1.9rem;
+    border-radius: 999px;
+    background: var(--sun);
+    color: var(--sun-ink);
+    border: 1px solid oklch(0.32 0.07 65 / 0.18);
+  }
+  .entry-lock-notice p {
+    min-width: 0;
+    padding-top: 0.1rem;
+  }
   .rules-hero::after {
     content: '';
     position: absolute;

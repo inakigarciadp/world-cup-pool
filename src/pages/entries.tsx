@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Check, ListChecks, Save, Search } from 'lucide-react'
+import { CalendarClock, Check, ListChecks, Save, Search } from 'lucide-react'
 
 import { Combobox } from '@/components/ui/combobox'
 import { saveEntry, type Overview } from '@/lib/httpApi'
@@ -59,6 +59,7 @@ function EntryEditor({ overview }: { overview: Overview }) {
   const totalPicks = overview.teamTiers.reduce((acc, tier) => acc + tier.requiredPicks, 0)
   const pickedTeams = selectedTeamIds.length
   const pickedGoalscorers = Object.values(goalscorerPickIds).filter(Boolean).length
+  const lockDateLabel = formatEntryLockDate(overview.pool.entryLockAt)
   const progress = Math.min(
     100,
     Math.round(
@@ -121,6 +122,16 @@ function EntryEditor({ overview }: { overview: Overview }) {
           <div className="entries-hero-bar-fill" style={{ width: `${progress}%` }} />
         </div>
       </header>
+
+      <div className="entry-lock-notice">
+        <div className="entry-lock-notice-icon" aria-hidden="true">
+          <CalendarClock className="size-4" />
+        </div>
+        <p>
+          <span>La porra cierra el {lockDateLabel}.</span>{' '}
+          <span>Después de enviarla puedes modificarla hasta el cierre.</span>
+        </p>
+      </div>
 
       {overview.teamTiers.length === 0 ? (
         <p className="rounded-2xl border bg-surface px-4 py-3 text-sm text-ink-soft">
@@ -464,5 +475,12 @@ function formatMultiplier(value: number | null) {
 function formatScore(value: number) {
   return new Intl.NumberFormat('es-ES', {
     maximumFractionDigits: 2,
+  }).format(value)
+}
+
+function formatEntryLockDate(value: number) {
+  return new Intl.DateTimeFormat('es-ES', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
   }).format(value)
 }
