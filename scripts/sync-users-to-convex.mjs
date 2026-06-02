@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { spawn } from 'node:child_process'
 import { resolve } from 'node:path'
 import { webcrypto } from 'node:crypto'
-import { getAdminScriptSecret } from './admin-script-secret.mjs'
+import { getAdminScriptSecret, getConvexDeployment } from './admin-script-secret.mjs'
 
 const CSV_PATH = resolve('data/users.csv')
 const HEADER = ['username', 'displayName', 'pin', 'isAdmin']
@@ -27,18 +27,19 @@ if (users.length === 0) {
   process.exit(1)
 }
 
-const args = JSON.stringify({
-  scriptSecret: await getAdminScriptSecret(deployment),
-  slug,
-  users,
-})
-
 if (isDryRun) {
   console.log(`Would sync ${users.length} user(s) to ${deployment} deployment for pool "${slug}".`)
   console.log('Pool config, teams, and tier multipliers are also synced before users.')
   console.log('Existing database participants not present in the CSV are left untouched.')
   process.exit(0)
 }
+
+const args = JSON.stringify({
+  scriptSecret: await getAdminScriptSecret(deployment),
+  slug,
+  users,
+})
+const convexDeployment = await getConvexDeployment(deployment)
 
 const commandArgs = [
   'exec',
@@ -47,7 +48,7 @@ const commandArgs = [
   'pools:upsertParticipantsFromCsv',
   args,
   '--deployment',
-  deployment,
+  convexDeployment,
   ...(deployment === 'dev' ? ['--push'] : []),
 ]
 

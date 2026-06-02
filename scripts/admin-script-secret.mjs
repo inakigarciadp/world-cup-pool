@@ -15,6 +15,23 @@ export async function getAdminScriptSecret(deployment) {
   return secret
 }
 
+export async function getConvexDeployment(deployment) {
+  await loadEnvFile('.env.local')
+
+  if (deployment === 'dev') {
+    const configured = process.env.CONVEX_DEPLOYMENT
+
+    if (!configured) {
+      console.error('CONVEX_DEPLOYMENT is required in .env.local to run dev scripts.')
+      process.exit(1)
+    }
+
+    return configured.startsWith('dev:') ? configured.slice('dev:'.length) : configured
+  }
+
+  return process.env.CONVEX_PROD_DEPLOYMENT || 'prod'
+}
+
 async function loadEnvFile(path) {
   let contents
 
@@ -49,6 +66,8 @@ async function loadEnvFile(path) {
       (value.startsWith("'") && value.endsWith("'"))
     ) {
       value = value.slice(1, -1)
+    } else {
+      value = value.replace(/\s+#.*$/, '').trim()
     }
 
     process.env[key] ??= value

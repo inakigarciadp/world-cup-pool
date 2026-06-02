@@ -40,6 +40,8 @@ Script-only admin mutations require a shared secret. Store separate local values
 ```bash
 CONVEX_DEV_ADMIN_SCRIPT_SECRET=<dev script secret>
 CONVEX_PROD_ADMIN_SCRIPT_SECRET=<prod script secret>
+# Optional: use a concrete production deployment name instead of the `prod` alias.
+CONVEX_PROD_DEPLOYMENT=
 
 set -a; source .env.local; set +a
 pnpm exec convex env set ADMIN_SCRIPT_SECRET "$CONVEX_DEV_ADMIN_SCRIPT_SECRET" --deployment dev

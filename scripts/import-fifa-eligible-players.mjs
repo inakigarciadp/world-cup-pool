@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
-import { getAdminScriptSecret } from './admin-script-secret.mjs'
+import { getAdminScriptSecret, getConvexDeployment } from './admin-script-secret.mjs'
 
 const FIFA_WEB_ORIGIN = 'https://www.fifa.com'
 const FIFA_CONTENT_API_BASE_URL = 'https://cxm-api.fifa.com/fifaplusweb/api'
@@ -100,6 +100,7 @@ const args = {
   slug: options.slug,
   players,
 }
+const convexDeployment = await getConvexDeployment(options.deployment)
 const convexArgs = [
   'exec',
   'convex',
@@ -107,7 +108,7 @@ const convexArgs = [
   'pools:importEligiblePlayersForAdmin',
   JSON.stringify(args),
   '--deployment',
-  options.deployment,
+  convexDeployment,
   ...(options.deployment === 'dev' ? ['--push'] : []),
 ]
 

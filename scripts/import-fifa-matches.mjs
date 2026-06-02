@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
-import { getAdminScriptSecret } from './admin-script-secret.mjs'
+import { getAdminScriptSecret, getConvexDeployment } from './admin-script-secret.mjs'
 
 const FIFA_CALENDAR_API_URL =
   'https://api.fifa.com/api/v3/calendar/matches?idCompetition=17&idSeason=285023&language=en&count=500'
@@ -47,6 +47,7 @@ const args = {
   slug: options.slug,
   matches: sortedMatches,
 }
+const convexDeployment = await getConvexDeployment(options.deployment)
 const convexArgs = [
   'exec',
   'convex',
@@ -54,7 +55,7 @@ const convexArgs = [
   'matches:importFifaMatchesForAdmin',
   JSON.stringify(args),
   '--deployment',
-  options.deployment,
+  convexDeployment,
   ...(options.deployment === 'dev' ? ['--push'] : []),
 ]
 
