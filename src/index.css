@@ -1044,16 +1044,33 @@
   }
 
   .matches-hero {
+    position: relative;
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
     border-radius: 1.75rem;
-    padding: 1.3rem 1.25rem 1.4rem;
-    background: linear-gradient(155deg, var(--sun) 0%, oklch(0.9 0.09 72) 100%);
+    padding: 1.5rem 1.4rem 1.6rem;
+    background:
+      radial-gradient(18rem 11rem at 110% 100%, oklch(0.69 0.155 33 / 0.42), transparent 65%),
+      linear-gradient(145deg, var(--sun) 0%, oklch(0.78 0.14 65) 100%);
     color: var(--sun-ink);
-    border: 1px solid oklch(0.32 0.07 65 / 0.18);
     box-shadow: var(--shadow-sticker);
+    overflow: hidden;
+  }
+  .matches-hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(oklch(0.965 0.022 88 / 0.34) 1px, transparent 1px);
+    background-size: 10px 10px;
+    pointer-events: none;
+    mask-image: linear-gradient(155deg, black 0%, transparent 62%);
+    -webkit-mask-image: linear-gradient(155deg, black 0%, transparent 62%);
+  }
+  .matches-hero > * {
+    position: relative;
+    z-index: 1;
   }
   .matches-hero h1 {
     margin-top: 0.35rem;
@@ -1068,6 +1085,7 @@
     font-size: 0.92rem;
     font-weight: 650;
     line-height: 1.35;
+    opacity: 0.82;
   }
 
   .matches-filter-row {
@@ -1106,11 +1124,19 @@
     overflow: hidden;
   }
   .match-card.is-mine {
-    border-color: oklch(0.38 0.08 175 / 0.24);
-    background: linear-gradient(90deg, oklch(0.87 0.085 168 / 0.18) 0 3rem, var(--surface) 8rem);
+    background:
+      linear-gradient(95deg, oklch(0.69 0.155 33 / 0.22) 0 6rem, transparent 14rem),
+      var(--surface);
+    border-color: oklch(0.69 0.155 33 / 0.32);
     box-shadow:
-      inset 3px 0 0 oklch(0.38 0.08 175 / 0.45),
-      var(--shadow-sticker);
+      inset 4px 0 0 var(--coral),
+      0 1px 0 oklch(0.22 0.032 55 / 0.08),
+      0 14px 28px -14px oklch(0.36 0.12 30 / 0.3);
+  }
+  .match-card.is-mine .mine-chip {
+    background: var(--paper);
+    color: var(--coral-ink);
+    border-color: oklch(0.36 0.12 30 / 0.3);
   }
 
   .match-card-head {
@@ -1141,15 +1167,16 @@
     display: inline-flex;
     align-items: center;
     border-radius: 999px;
-    border: 1px solid oklch(0.38 0.08 175 / 0.25);
-    background: var(--mint);
-    color: var(--mint-ink);
+    border: 1px solid oklch(0.36 0.12 30 / 0.3);
+    background: var(--paper);
+    color: var(--coral-ink);
     padding: 0.24rem 0.58rem;
     font-family: var(--font-heading);
     font-size: 0.68rem;
     font-weight: 850;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+    box-shadow: 0 2px 0 oklch(0.36 0.12 30 / 0.25);
   }
 
   .match-scoreboard {
@@ -1235,7 +1262,19 @@
     color: var(--ink-soft);
   }
 
-  .goal-chip,
+  .goal-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border-radius: 999px;
+    border: 1px solid oklch(0.32 0.07 65 / 0.3);
+    background: var(--sun);
+    color: var(--sun-ink);
+    padding: 0.28rem 0.6rem;
+    font-family: var(--font-heading);
+    font-size: 0.75rem;
+    font-weight: 800;
+  }
   .stake-chip {
     display: inline-flex;
     align-items: center;
@@ -1243,6 +1282,7 @@
     border-radius: 999px;
     border: 1px solid var(--hairline);
     background: var(--paper-deep);
+    color: var(--ink);
     padding: 0.28rem 0.6rem;
     font-family: var(--font-heading);
     font-size: 0.75rem;
@@ -1256,7 +1296,8 @@
     gap: 0.75rem;
     border-radius: 1rem;
     background: var(--paper-deep);
-    padding: 0.55rem 0.65rem;
+    padding: 0.65rem 0.8rem;
+    border: 1px dashed var(--hairline);
   }
   .stake-name {
     min-width: 0;
@@ -1315,13 +1356,14 @@
     align-items: center;
     gap: 0.45rem;
     border-radius: 1rem;
-    background: oklch(0.88 0.125 82 / 0.45);
-    border: 1px solid oklch(0.32 0.07 65 / 0.2);
+    background: var(--coral);
+    border: 1px solid var(--coral-ink);
     padding: 0.7rem 0.85rem;
-    color: var(--sun-ink);
+    color: var(--paper);
     font-family: var(--font-heading);
     font-size: 0.82rem;
     font-weight: 850;
+    box-shadow: 0 3px 0 var(--coral-ink);
   }
 
   .admin-field {

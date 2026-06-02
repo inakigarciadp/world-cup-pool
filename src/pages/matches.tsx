@@ -53,11 +53,10 @@ export function MatchesPage() {
     <section className="space-y-5">
       <header className="matches-hero">
         <div>
-          <p className="eyebrow text-coral-ink">Mundial 2026</p>
           <h1>Partidos</h1>
           <p>Calendario, resultados, goleadores y apuestas implicadas.</p>
         </div>
-        <CalendarDays className="size-10 text-coral-ink" aria-hidden="true" />
+        <CalendarDays className="size-10 text-sun-ink" aria-hidden="true" />
       </header>
 
       <div className="flex items-center justify-between gap-3">
