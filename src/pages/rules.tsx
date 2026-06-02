@@ -1,4 +1,4 @@
-import { CircleHelp, Flag, Goal, Medal, Trophy } from 'lucide-react'
+import { Crown, Flag, Goal, Medal, Trophy } from 'lucide-react'
 
 import { useOverview } from '@/lib/overview-context'
 
@@ -114,7 +114,7 @@ export function RulesPage() {
 
         <article className="rule-block">
           <div className="rule-icon" style={{ background: 'var(--ink)', color: 'var(--paper)' }}>
-            <CircleHelp className="size-5" aria-hidden="true" />
+            <Crown className="size-5" aria-hidden="true" />
           </div>
           <h3>El pichichi tiene premio</h3>
           <p>
