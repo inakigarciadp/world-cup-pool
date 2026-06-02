@@ -8,6 +8,7 @@ import { saveEntry, type Overview } from '@/lib/httpApi'
 import { overviewQueryKey, overviewQueryOptions } from '@/lib/overview-query'
 import { useOverview } from '@/lib/overview-context'
 import { filterGoalscorers, getFlagEmoji, getTournamentGroups } from '@/lib/teams'
+import { getUserErrorMessage } from '@/lib/user-error'
 
 export function EntriesPage() {
   const { overview } = useOverview()
@@ -60,8 +61,7 @@ function EntryEditor({ overview }: { overview: Overview }) {
     },
     onError: (error) => {
       toast.error('No se ha podido guardar', {
-        description:
-          error instanceof Error ? error.message : 'Inténtalo de nuevo en unos segundos.',
+        description: getUserErrorMessage(error),
       })
     },
   })

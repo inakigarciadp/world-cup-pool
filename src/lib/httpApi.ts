@@ -1,3 +1,5 @@
+import { formatUserErrorMessage } from '@/lib/user-error'
+
 const API_URL = import.meta.env.PROD
   ? ''
   : (import.meta.env.VITE_CONVEX_SITE_URL ?? import.meta.env.VITE_CONVEX_URL)
@@ -305,7 +307,11 @@ async function parseJsonResponse(response: Response) {
   const body = await response.json()
 
   if (!response.ok) {
-    throw new Error(typeof body.error === 'string' ? body.error : 'La solicitud ha fallado.')
+    throw new Error(
+      typeof body.error === 'string'
+        ? formatUserErrorMessage(body.error, 'La solicitud ha fallado.')
+        : 'La solicitud ha fallado.',
+    )
   }
 
   return body

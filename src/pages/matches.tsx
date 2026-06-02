@@ -29,6 +29,7 @@ import {
 } from '@/lib/httpApi'
 import { matchesQueryOptions, requireLoadedMatches } from '@/lib/matches-query'
 import { getFlagEmoji } from '@/lib/teams'
+import { getUserErrorMessage } from '@/lib/user-error'
 
 type GoalDraft = {
   id: string
@@ -96,7 +97,7 @@ export function MatchesPage() {
 
       {error ? (
         <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
-          {error instanceof Error ? error.message : 'No se han podido cargar los partidos.'}
+          {getUserErrorMessage(error, 'No se han podido cargar los partidos.')}
         </div>
       ) : null}
 
@@ -283,7 +284,7 @@ function AdminMatchEditor({ match, payload }: { match: Match; payload: MatchesPa
   }
   const onMutationError = (error: Error) => {
     toast.error('No se han podido guardar los cambios', {
-      description: error.message,
+      description: getUserErrorMessage(error),
     })
   }
   const teamsMutation = useMutation({
