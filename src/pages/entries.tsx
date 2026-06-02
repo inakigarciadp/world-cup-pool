@@ -97,34 +97,28 @@ function EntryEditor({ overview }: { overview: Overview }) {
 
   return (
     <section className="space-y-6">
-      <header className="sticker p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="eyebrow text-coral-ink">Tu jugada</p>
-            <h2 className="heading mt-1 text-2xl">Arma tu apuesta</h2>
-            <p className="mt-1 text-sm font-semibold text-ink-soft">
-              {pickedTeams}/{totalPicks} selecciones · {pickedGoalscorers}/
-              {overview.teamTiers.length} goleadores
-            </p>
-          </div>
-          <div
-            className="display-num grid h-16 w-16 place-items-center rounded-2xl bg-coral text-paper shadow-[0_4px_0_var(--coral-ink)]"
-            aria-hidden="true"
-          >
-            {progress}
+      <header className="entries-hero">
+        <div>
+          <h2 className="display-title text-3xl leading-[0.95]">Haz tu apuesta</h2>
+          <p className="mt-1.5 text-sm font-semibold opacity-75">
+            {pickedTeams}/{totalPicks} selecciones · {pickedGoalscorers}/{overview.teamTiers.length}{' '}
+            goleadores
+          </p>
+        </div>
+        <div className="entries-hero-stamp" aria-hidden="true">
+          <div className="entries-hero-stamp-content">
+            <span className="entries-hero-num">{progress}</span>
+            <span className="entries-hero-unit">%</span>
           </div>
         </div>
         <div
-          className="mt-4 h-2 overflow-hidden rounded-full bg-paper-deep"
+          className="entries-hero-bar"
           role="progressbar"
           aria-valuenow={progress}
           aria-valuemin={0}
           aria-valuemax={100}
         >
-          <div
-            className="h-full rounded-full bg-coral transition-[width] duration-300"
-            style={{ width: `${progress}%` }}
-          />
+          <div className="entries-hero-bar-fill" style={{ width: `${progress}%` }} />
         </div>
       </header>
 

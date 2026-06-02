@@ -931,6 +931,83 @@
     box-shadow: var(--shadow-sticker);
     overflow: hidden;
   }
+
+  .entries-hero {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    column-gap: 1.25rem;
+    row-gap: 1.1rem;
+    border-radius: 1.75rem;
+    padding: 1.5rem 1.4rem 1.4rem;
+    background:
+      radial-gradient(22rem 14rem at 110% 100%, oklch(0.69 0.155 33 / 0.5), transparent 60%),
+      linear-gradient(145deg, oklch(0.84 0.12 35) 0%, oklch(0.93 0.05 50) 100%);
+    color: var(--sun-ink);
+    box-shadow: var(--shadow-sticker);
+    overflow: hidden;
+  }
+  .entries-hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(oklch(0.965 0.022 88 / 0.38) 1px, transparent 1px);
+    background-size: 10px 10px;
+    pointer-events: none;
+    mask-image: linear-gradient(155deg, black 0%, transparent 60%);
+    -webkit-mask-image: linear-gradient(155deg, black 0%, transparent 60%);
+  }
+  .entries-hero > * {
+    position: relative;
+    z-index: 1;
+  }
+  .entries-hero-stamp {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 5.5rem;
+    height: 5.5rem;
+    border-radius: 999px;
+    background: var(--paper);
+    color: var(--coral-ink);
+    box-shadow:
+      0 4px 0 oklch(0.55 0.18 25 / 0.55),
+      0 1px 0 oklch(0.22 0.032 55 / 0.08);
+    flex-shrink: 0;
+  }
+  .entries-hero-stamp-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-family: var(--font-display);
+    line-height: 1;
+  }
+  .entries-hero-num {
+    font-size: 1.45rem;
+    line-height: 0.8;
+    padding-bottom: 0.35rem;
+  }
+  .entries-hero-unit {
+    font-size: 0.55rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    opacity: 0.85;
+    line-height: 1;
+    margin-top: 0.15rem;
+  }
+  .entries-hero-bar {
+    grid-column: 1 / -1;
+    height: 0.5rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: oklch(0.99 0.008 90 / 0.55);
+  }
+  .entries-hero-bar-fill {
+    height: 100%;
+    background: var(--coral-ink);
+    transition: width 300ms ease;
+  }
   .rules-hero::after {
     content: '';
     position: absolute;
@@ -1125,8 +1202,7 @@
   }
   .match-card.is-mine {
     background:
-      linear-gradient(95deg, oklch(0.69 0.155 33 / 0.22) 0 6rem, transparent 14rem),
-      var(--surface);
+      linear-gradient(95deg, oklch(0.69 0.155 33 / 0.22) 0 6rem, transparent 14rem), var(--surface);
     border-color: oklch(0.69 0.155 33 / 0.32);
     box-shadow:
       inset 4px 0 0 var(--coral),
