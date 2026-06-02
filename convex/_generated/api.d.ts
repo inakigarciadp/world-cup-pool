@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as adminScriptAuth from "../adminScriptAuth.js";
 import type * as authCrypto from "../authCrypto.js";
 import type * as http from "../http.js";
 import type * as matches from "../matches.js";
@@ -20,6 +21,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  adminScriptAuth: typeof adminScriptAuth;
   authCrypto: typeof authCrypto;
   http: typeof http;
   matches: typeof matches;

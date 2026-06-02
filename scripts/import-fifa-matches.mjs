@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
+import { getAdminScriptSecret } from './admin-script-secret.mjs'
 
 const FIFA_CALENDAR_API_URL =
   'https://api.fifa.com/api/v3/calendar/matches?idCompetition=17&idSeason=285023&language=en&count=500'
@@ -42,6 +43,7 @@ if (options.dryRun) {
 }
 
 const args = {
+  scriptSecret: await getAdminScriptSecret(options.deployment),
   slug: options.slug,
   matches: sortedMatches,
 }

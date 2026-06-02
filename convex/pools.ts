@@ -3,6 +3,7 @@ import { v } from 'convex/values'
 import { internalMutation, internalQuery, mutation } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx } from './_generated/server'
+import { requireAdminScriptSecret } from './adminScriptAuth'
 import { verifyPin } from './authCrypto'
 
 const DEMO_SLUG = 'world-cup-2026'
@@ -446,6 +447,7 @@ export const saveEntryForHttp = internalMutation({
 
 export const importEligiblePlayersForAdmin = mutation({
   args: {
+    scriptSecret: v.string(),
     slug: v.optional(v.string()),
     players: v.array(
       v.object({
@@ -455,6 +457,8 @@ export const importEligiblePlayersForAdmin = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    requireAdminScriptSecret(args.scriptSecret)
+
     const pool = await ctx.db
       .query('pools')
       .withIndex('by_slug', (q) => q.eq('slug', args.slug ?? DEMO_SLUG))
@@ -677,6 +681,7 @@ export const revokeRefreshSession = internalMutation({
 
 export const upsertParticipantsFromCsv = mutation({
   args: {
+    scriptSecret: v.string(),
     slug: v.optional(v.string()),
     users: v.array(
       v.object({
@@ -688,6 +693,8 @@ export const upsertParticipantsFromCsv = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    requireAdminScriptSecret(args.scriptSecret)
+
     const pool = await getOrCreatePool(ctx, args.slug ?? DEMO_SLUG)
     let inserted = 0
     let updated = 0

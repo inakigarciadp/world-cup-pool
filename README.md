@@ -35,6 +35,19 @@ pnpm exec convex env set SITE_ORIGINS "http://localhost:5173"
 
 `AUTH_JWT_SECRET` signs the short-lived access JWT and long-lived refresh JWT. `SITE_ORIGINS` is a comma-separated allowlist of frontend origins that can send credentialed requests to Convex HTTP actions. `SITE_ORIGIN` is still supported for one origin, but new setup should use `SITE_ORIGINS`.
 
+Script-only admin mutations require a shared secret. Store separate local values for dev and prod in `.env.local`, and set the matching value in each Convex deployment as `ADMIN_SCRIPT_SECRET`:
+
+```bash
+CONVEX_DEV_ADMIN_SCRIPT_SECRET=<dev script secret>
+CONVEX_PROD_ADMIN_SCRIPT_SECRET=<prod script secret>
+
+set -a; source .env.local; set +a
+pnpm exec convex env set ADMIN_SCRIPT_SECRET "$CONVEX_DEV_ADMIN_SCRIPT_SECRET" --deployment dev
+pnpm exec convex env set ADMIN_SCRIPT_SECRET "$CONVEX_PROD_ADMIN_SCRIPT_SECRET" --deployment prod
+```
+
+The local import/sync scripts read `.env.local` and choose the right secret from `--deployment dev|prod`.
+
 ## Production Deploy
 
 The first production deploy uses Vercel for the Vite frontend and the Convex production deployment for the backend.
@@ -104,6 +117,7 @@ The first production deploy uses Vercel for the Vite frontend and the Convex pro
    ```bash
    pnpm exec convex env set AUTH_JWT_SECRET "$(openssl rand -base64 48)" --prod
    pnpm exec convex env set SITE_ORIGINS "https://your-project.vercel.app" --prod
+   pnpm exec convex env set ADMIN_SCRIPT_SECRET "$CONVEX_PROD_ADMIN_SCRIPT_SECRET" --prod
    ```
 
    If the app later uses a custom domain, allow both origins until traffic has moved:

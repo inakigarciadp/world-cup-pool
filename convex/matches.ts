@@ -3,6 +3,7 @@ import { v } from 'convex/values'
 import { internalMutation, internalQuery, mutation } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx, QueryCtx } from './_generated/server'
+import { requireAdminScriptSecret } from './adminScriptAuth'
 
 const DEMO_SLUG = 'world-cup-2026'
 const DEFAULT_MATCH_WINDOW_MS = 3 * 60 * 60 * 1000
@@ -421,6 +422,7 @@ export const replaceMatchGoalsForHttp = internalMutation({
 
 export const importFifaMatchesForAdmin = mutation({
   args: {
+    scriptSecret: v.string(),
     slug: v.optional(v.string()),
     matches: v.array(
       v.object({
@@ -442,6 +444,8 @@ export const importFifaMatchesForAdmin = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    requireAdminScriptSecret(args.scriptSecret)
+
     const pool = await ctx.db
       .query('pools')
       .withIndex('by_slug', (q) => q.eq('slug', args.slug ?? DEMO_SLUG))

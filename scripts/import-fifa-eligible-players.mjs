@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
+import { getAdminScriptSecret } from './admin-script-secret.mjs'
 
 const FIFA_WEB_ORIGIN = 'https://www.fifa.com'
 const FIFA_CONTENT_API_BASE_URL = 'https://cxm-api.fifa.com/fifaplusweb/api'
@@ -95,6 +96,7 @@ if (options.dryRun) {
 }
 
 const args = {
+  scriptSecret: await getAdminScriptSecret(options.deployment),
   slug: options.slug,
   players,
 }
