@@ -202,7 +202,8 @@ function extractOfficialSquadPlayers(squad, teamFifaCode) {
 
   for (const player of squad?.Players ?? []) {
     const name = cleanPlayerName(
-      localizedDescription(player.DisplayName) ??
+      localizedDescription(player.PlayerName) ??
+        localizedDescription(player.DisplayName) ??
         localizedDescription(player.KnownName) ??
         localizedDescription(player.ShortName) ??
         localizedDescription(player.Name) ??
