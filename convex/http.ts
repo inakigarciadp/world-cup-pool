@@ -473,7 +473,7 @@ function optionsResponse(request: Request) {
 }
 
 function corsHeaders(request: Request) {
-  const origin = request.headers.get('Origin') ?? process.env.SITE_ORIGIN ?? ''
+  const origin = request.headers.get('Origin')
   const headers = new Headers({
     'Access-Control-Allow-Credentials': 'true',
     'Access-Control-Allow-Headers': 'Content-Type',
@@ -481,11 +481,26 @@ function corsHeaders(request: Request) {
     Vary: 'Origin',
   })
 
-  if (origin) {
+  if (origin !== null && getAllowedOrigins().has(origin)) {
     headers.set('Access-Control-Allow-Origin', origin)
   }
 
   return headers
+}
+
+function getAllowedOrigins() {
+  const configuredOrigins = process.env.SITE_ORIGINS ?? process.env.SITE_ORIGIN
+
+  if (!configuredOrigins) {
+    return new Set(['http://localhost:5173'])
+  }
+
+  return new Set(
+    configuredOrigins
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean),
+  )
 }
 
 function authCookies(accessToken: string, refreshToken: string) {

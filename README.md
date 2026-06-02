@@ -19,7 +19,7 @@ pnpm dev
 Link and run Convex:
 
 ```bash
-pnpm convex dev
+pnpm dev:convex
 ```
 
 The first Convex run prompts you to sign in with GitHub, create or select a Convex project, and writes the deployment values to `.env.local`. Vite reads the Convex client URL from `VITE_CONVEX_URL` and the HTTP action URL from `VITE_CONVEX_SITE_URL`.
@@ -27,18 +27,119 @@ The first Convex run prompts you to sign in with GitHub, create or select a Conv
 Set the Convex auth environment variables before using participant login:
 
 ```bash
-pnpm convex env set AUTH_JWT_SECRET "$(openssl rand -base64 48)"
-pnpm convex env set SITE_ORIGIN "http://localhost:5173"
+pnpm exec convex env set AUTH_JWT_SECRET "$(openssl rand -base64 48)"
+pnpm exec convex env set SITE_ORIGINS "http://localhost:5173"
 ```
 
-`AUTH_JWT_SECRET` signs the short-lived access JWT and long-lived refresh JWT. `SITE_ORIGIN` should match the frontend origin that is allowed to send credentialed requests.
+`AUTH_JWT_SECRET` signs the short-lived access JWT and long-lived refresh JWT. `SITE_ORIGINS` is a comma-separated allowlist of frontend origins that can send credentialed requests to Convex HTTP actions. `SITE_ORIGIN` is still supported for one origin, but new setup should use `SITE_ORIGINS`.
+
+## Production Deploy
+
+The first production deploy uses Vercel for the Vite frontend and the Convex production deployment for the backend.
+
+1. Push the repo to GitHub, GitLab, or Bitbucket.
+
+2. Open the Convex dashboard at <https://dashboard.convex.dev>, select this project, then select the production deployment.
+
+3. Generate or copy a production deploy key from the production deployment settings. In the Convex dashboard this is under the deployment settings for URL/deploy keys.
+
+4. Import the repo into Vercel.
+
+   Use these project settings:
+
+   ```text
+   Framework Preset: Vite
+   Root Directory: .
+   Build Command: pnpm exec convex deploy --cmd 'pnpm build'
+   Output Directory: dist
+   ```
+
+   Do not manually set `VITE_CONVEX_URL` or `VITE_CONVEX_SITE_URL` in Vercel. The Convex deploy command injects both values into the Vite build.
+
+5. Add the production Convex deploy key to Vercel.
+
+   In Vercel project settings, add this environment variable for the production environment:
+
+   ```text
+   CONVEX_DEPLOY_KEY=<production deploy key from Convex>
+   ```
+
+6. Deploy from Vercel.
+
+   Vercel runs the build command above, which deploys Convex functions to production and builds the static frontend into `dist`.
+
+7. Copy the production Vercel URL, for example:
+
+   ```text
+   https://your-project.vercel.app
+   ```
+
+8. Set the required Convex production environment variables.
+
+   Use the Convex dashboard on the production deployment, or run:
+
+   ```bash
+   pnpm exec convex env set AUTH_JWT_SECRET "$(openssl rand -base64 48)" --prod
+   pnpm exec convex env set SITE_ORIGINS "https://your-project.vercel.app" --prod
+   ```
+
+   If the app later uses a custom domain, allow both origins until traffic has moved:
+
+   ```bash
+   pnpm exec convex env set SITE_ORIGINS "https://your-project.vercel.app,https://your-domain.com" --prod
+   ```
+
+9. Seed production data.
+
+   Make sure `data/users.csv` contains the participants you want to invite, then sync users and base pool data:
+
+   ```bash
+   pnpm users:sync:prod
+   ```
+
+   Dry-run the public FIFA imports first:
+
+   ```bash
+   pnpm players:import:fifa
+   pnpm matches:import:fifa
+   ```
+
+   Then import players and matches into production:
+
+   ```bash
+   pnpm players:import:fifa:prod
+   pnpm matches:import:fifa:prod
+   ```
+
+10. Verify the deployment.
+
+    Open the Vercel URL, log in with a participant from `data/users.csv`, and check the Convex production dashboard for expected rows in `pools`, `participants`, `teams`, `teamTiers`, `eligiblePlayers`, and `matches`.
+
+If direct visits to nested frontend routes such as `/entries` return a Vercel 404, add a SPA fallback with `vercel.json`:
+
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}
+```
 
 ## Scripts
 
 - `pnpm dev`: run the Vite dev server.
-- `pnpm convex dev`: link/sync the Convex backend and generate Convex client types.
+- `pnpm dev:convex`: link/sync the Convex backend and generate Convex client types.
 - `pnpm build`: type-check and build the frontend.
 - `pnpm lint`: run ESLint.
+- `pnpm lint:fix`: run ESLint with automatic fixes.
+- `pnpm fmt`: format the repo.
+- `pnpm fmt:check`: check repo formatting.
+- `pnpm preview`: preview the production Vite build locally.
+- `pnpm players:import:fifa`: dry-run the FIFA eligible-player import.
+- `pnpm players:import:fifa:dev`: import FIFA eligible players into the dev Convex deployment.
+- `pnpm players:import:fifa:prod`: import FIFA eligible players into the prod Convex deployment.
+- `pnpm matches:import:fifa`: dry-run the FIFA match import.
+- `pnpm matches:import:fifa:dev`: import FIFA matches into the dev Convex deployment.
+- `pnpm matches:import:fifa:prod`: import FIFA matches into the prod Convex deployment.
 - `pnpm users:add <username> [--admin]`: add a local participant row under `data/users.csv`.
 - `pnpm users:sync:dev`: hash local PINs and sync participants to the dev Convex deployment.
 - `pnpm users:sync:prod`: hash local PINs and sync participants to the prod Convex deployment.
