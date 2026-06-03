@@ -28,7 +28,7 @@ export function LoginPage() {
     <LoginShell>
       <form className="space-y-4" onSubmit={handleSubmit}>
         <div className="login-field">
-          <label htmlFor="loginName">Nombre de participante</label>
+          <label htmlFor="loginName">Usuario</label>
           <input
             id="loginName"
             value={loginName}
@@ -38,7 +38,7 @@ export function LoginPage() {
           />
         </div>
         <div className="login-field">
-          <label htmlFor="pin">PIN</label>
+          <label htmlFor="pin">Contraseña</label>
           <input
             id="pin"
             value={pin}
