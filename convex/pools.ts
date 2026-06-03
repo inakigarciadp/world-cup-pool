@@ -219,6 +219,7 @@ export const getAuthenticatedOverview = internalQuery({
 
     return {
       session: {
+        participantId: sessionParticipant._id,
         participantName: sessionParticipant.displayName,
         isAdmin: sessionParticipant.isAdmin,
       },

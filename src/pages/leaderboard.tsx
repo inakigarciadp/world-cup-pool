@@ -5,10 +5,13 @@ import { useOverview } from '@/lib/overview-context'
 
 export function LeaderboardPage() {
   const { overview } = useOverview()
+  const myParticipantId = overview.session.participantId
   const myName = overview.session.participantName
   const top = overview.leaderboard.slice(0, 3)
   const rest = overview.leaderboard.slice(3)
-  const myRank = overview.leaderboard.findIndex((entry) => entry.participantName === myName)
+  const myRank = overview.leaderboard.findIndex(
+    (entry) => entry.participantId === myParticipantId,
+  )
   const myEntry = myRank >= 0 ? overview.leaderboard[myRank] : null
 
   return (
@@ -25,7 +28,7 @@ export function LeaderboardPage() {
 
       <div>
         <div className="section-label mb-3">Podio</div>
-        <Podium top={top} myName={myName} />
+        <Podium top={top} myParticipantId={myParticipantId} />
       </div>
 
       {rest.length > 0 ? (
@@ -34,12 +37,9 @@ export function LeaderboardPage() {
           <ul className="space-y-2.5">
             {rest.map((entry, index) => {
               const rank = index + 4
-              const isMe = entry.participantName === myName
-              return (
-                <li
-                  key={entry.entryId ?? entry.participantId}
-                  className={`leaderboard-row ${isMe ? 'is-me' : ''}`}
-                >
+              const isMe = entry.participantId === myParticipantId
+              const content = (
+                <>
                   <span className="rank-circle">{rank}</span>
                   <span className="min-w-0">
                     <span className="block truncate font-heading text-sm font-bold">
@@ -55,6 +55,27 @@ export function LeaderboardPage() {
                     {formatLeaderboardScore(entry)}
                     {entry.entryId != null ? <small>pts</small> : null}
                   </span>
+                </>
+              )
+
+              if (isMe) {
+                return (
+                  <li key={entry.entryId ?? entry.participantId} className="leaderboard-row is-me">
+                    {content}
+                  </li>
+                )
+              }
+
+              return (
+                <li key={entry.entryId ?? entry.participantId}>
+                  <Link
+                    to="/entries"
+                    search={{ participantId: entry.participantId }}
+                    aria-label={`Ver apuesta de ${entry.participantName}`}
+                    className="leaderboard-row"
+                  >
+                    {content}
+                  </Link>
                 </li>
               )
             })}
@@ -125,7 +146,13 @@ function HeroCard({
   )
 }
 
-function Podium({ top, myName }: { top: Overview['leaderboard']; myName: string }) {
+function Podium({
+  top,
+  myParticipantId,
+}: {
+  top: Overview['leaderboard']
+  myParticipantId: string
+}) {
   if (top.length === 0) return null
   const order = [1, 0, 2]
   const labels = ['2º', '1º', '3º']
@@ -137,13 +164,9 @@ function Podium({ top, myName }: { top: Overview['leaderboard']; myName: string 
         if (!entry) {
           return <div key={`empty-${slot}`} className="opacity-0" />
         }
-        const isMe = entry.participantName === myName
-        return (
-          <div
-            key={entry.entryId ?? entry.participantId}
-            className="podium-step"
-            data-place={topIndex + 1}
-          >
+        const isMe = entry.participantId === myParticipantId
+        const content = (
+          <>
             <span className="podium-place" aria-label={labels[slot]}>
               {topIndex + 1}
             </span>
@@ -164,7 +187,32 @@ function Podium({ top, myName }: { top: Overview['leaderboard']; myName: string 
                 <span className="ml-1 text-[0.55rem] font-bold opacity-80">pts</span>
               ) : null}
             </p>
-          </div>
+          </>
+        )
+
+        if (isMe) {
+          return (
+            <div
+              key={entry.entryId ?? entry.participantId}
+              className="podium-step"
+              data-place={topIndex + 1}
+            >
+              {content}
+            </div>
+          )
+        }
+
+        return (
+          <Link
+            key={entry.entryId ?? entry.participantId}
+            to="/entries"
+            search={{ participantId: entry.participantId }}
+            aria-label={`Ver apuesta de ${entry.participantName}`}
+            className="podium-step"
+            data-place={topIndex + 1}
+          >
+            {content}
+          </Link>
         )
       })}
     </div>

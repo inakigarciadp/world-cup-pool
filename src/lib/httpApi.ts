@@ -7,6 +7,7 @@ let refreshPromise: Promise<boolean> | null = null
 
 export type Overview = {
   session: {
+    participantId: string
     participantName: string
     isAdmin: boolean
   }

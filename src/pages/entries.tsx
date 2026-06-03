@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useSearch } from '@tanstack/react-router'
 import { CalendarClock, Check, ListChecks, Save, Search } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -12,11 +13,12 @@ import { getUserErrorMessage } from '@/lib/user-error'
 
 export function EntriesPage() {
   const { overview } = useOverview()
+  const { participantId } = useSearch({ from: '/_authenticated/entries' })
 
   return (
     <section className="space-y-7">
       <EntryEditor overview={overview} />
-      <OtherEntries overview={overview} />
+      <OtherEntries overview={overview} targetParticipantId={participantId} />
     </section>
   )
 }
@@ -361,9 +363,31 @@ function EntryEditor({ overview }: { overview: Overview }) {
   )
 }
 
-function OtherEntries({ overview }: { overview: Overview }) {
-  const myName = overview.session.participantName
-  const others = overview.leaderboard.filter((entry) => entry.participantName !== myName)
+function OtherEntries({
+  overview,
+  targetParticipantId,
+}: {
+  overview: Overview
+  targetParticipantId?: string
+}) {
+  const myParticipantId = overview.session.participantId
+  const cardRefs = useRef(new Map<string, HTMLElement>())
+  const [highlightedParticipantId, setHighlightedParticipantId] = useState<string | null>(null)
+  const others = overview.leaderboard.filter((entry) => entry.participantId !== myParticipantId)
+
+  useEffect(() => {
+    if (!targetParticipantId || targetParticipantId === myParticipantId) return
+
+    const card = cardRefs.current.get(targetParticipantId)
+    if (!card) return
+
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setHighlightedParticipantId(targetParticipantId)
+
+    const timeoutId = window.setTimeout(() => setHighlightedParticipantId(null), 1800)
+    return () => window.clearTimeout(timeoutId)
+  }, [myParticipantId, targetParticipantId, others.length])
+
   if (others.length === 0) return null
 
   return (
@@ -371,7 +395,19 @@ function OtherEntries({ overview }: { overview: Overview }) {
       <div className="section-label">La cuadrilla</div>
       <div className="space-y-3">
         {others.map((entry) => (
-          <article key={entry.entryId ?? entry.participantId} className="entry-card">
+          <article
+            key={entry.entryId ?? entry.participantId}
+            ref={(element) => {
+              if (element) {
+                cardRefs.current.set(entry.participantId, element)
+              } else {
+                cardRefs.current.delete(entry.participantId)
+              }
+            }}
+            className={`entry-card ${
+              highlightedParticipantId === entry.participantId ? 'is-targeted' : ''
+            }`}
+          >
             <header className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2.5">
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-paper-deep text-sm font-extrabold text-ink">

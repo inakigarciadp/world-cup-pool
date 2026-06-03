@@ -357,6 +357,17 @@
     background: var(--surface);
     border: 1px solid var(--hairline);
     box-shadow: var(--shadow-soft);
+    color: inherit;
+    text-decoration: none;
+    transition:
+      transform 120ms ease,
+      border-color 120ms ease,
+      box-shadow 120ms ease;
+  }
+  a.leaderboard-row:hover {
+    transform: translateY(-1px);
+    border-color: oklch(0.55 0.18 25 / 0.35);
+    box-shadow: var(--shadow-sticker);
   }
 
   .leaderboard-row.is-me {
@@ -955,6 +966,18 @@
     display: flex;
     flex-direction: column;
     gap: 0.85rem;
+    scroll-margin-top: 5.5rem;
+    transition:
+      border-color 180ms ease,
+      box-shadow 180ms ease,
+      transform 180ms ease;
+  }
+  .entry-card.is-targeted {
+    border-color: oklch(0.55 0.18 25 / 0.5);
+    box-shadow:
+      0 0 0 3px oklch(0.69 0.155 33 / 0.18),
+      var(--shadow-sticker);
+    transform: translateY(-1px);
   }
   .entry-card.is-me {
     background: linear-gradient(180deg, var(--coral) 0%, var(--coral-deep) 100%);
