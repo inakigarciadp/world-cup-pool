@@ -46,6 +46,7 @@
     "@types/node": "^24.12.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@vercel/config": "^0.5.1",
     "@vitejs/plugin-react": "^6.0.1",
     "oxfmt": "^0.52.0",
     "oxlint": "^1.67.0",
