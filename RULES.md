@@ -36,10 +36,10 @@ Each Team Pick earns Match Points and Stage Bonuses. First calculate the base po
 | Win in normal time or extra time |           3 |
 | Draw                             |           1 |
 | Loss                             |           0 |
-| Win after a penalty shootout     |     1 total |
-| Loss after a penalty shootout    |           0 |
+| Win after a penalty shootout     |           2 |
+| Loss after a penalty shootout    |           1 |
 
-A penalty shootout win is worth 1 base point total. It does not also earn draw points or win points.
+A penalty shootout Match is treated as an in-play draw plus the shootout outcome: the shootout winner earns 2 base points total, and the shootout loser earns 1 base point total.
 
 ### Stage Bonuses
 
@@ -49,6 +49,7 @@ A penalty shootout win is worth 1 base point total. It does not also earn draw p
 | Qualifies for the Round of 16    |         7.5 |
 | Qualifies for the quarter-finals |          10 |
 | Qualifies for the semi-finals    |          15 |
+| Qualifies for the final          |        17.5 |
 | Wins the World Cup               |          20 |
 
 A Stage Bonus is awarded once per Team Pick when the achievement is confirmed. Stage Bonuses are multiplied by the Team Pick's Tier Multiplier.
@@ -72,4 +73,4 @@ If the official tournament source recognises multiple top scorers, each selected
 
 Scores can be fractional because of Tier Multipliers. Scores use quarter-point increments and are shown without unnecessary trailing zeros, for example `3`, `4.5`, or `8.75`.
 
-An Entry's total score is the sum of all Team Pick points and Goalscorer Pick points. The Leaderboard ranks Participants by total score.
+An Entry's total score is the sum of all Team Pick points and Goalscorer Pick points. The Leaderboard ranks Participants by total score. If two or more Entries have the same total score, they share the same position.

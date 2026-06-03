@@ -109,11 +109,11 @@ The Pool-specific meaning derived from a **Match Result**, such as whether a **T
 _Avoid_: Match Result, official result
 
 **Leaderboard**:
-The public ranking of **Participants** by their current score in the **Pool**. The **Leaderboard** is visible from the beginning of the **Pool**, even before any points have been awarded.
+The public ranking of **Participants** by their current score in the **Pool**. The **Leaderboard** is visible from the beginning of the **Pool**, even before any points have been awarded. Entries with the same score share the same position.
 _Avoid_: Table, standings, classification
 
 **Match Points**:
-Points awarded to an **Entry** when one of its **Team Picks** plays a match. A normal-time or extra-time win gives 3 points, a draw gives 1 point, a loss gives 0 points, and a penalty shootout win gives 1 point total. A penalty shootout loss gives 0 points.
+Points awarded to an **Entry** when one of its **Team Picks** plays a match. A normal-time or extra-time win gives 3 points, a draw gives 1 point, a loss gives 0 points, a penalty shootout win gives 2 points total, and a penalty shootout loss gives 1 point total.
 _Avoid_: Game points, fixture points
 
 **Stage Bonus**:
@@ -198,10 +198,10 @@ Dev: "When is the Leaderboard visible?"
 Domain expert: "From the beginning. It starts with zero points and updates as the Pool is scored."
 
 Dev: "Does a penalty shootout win score 3 plus 1?"
-Domain expert: "No. A penalty shootout win gives 1 Match Point total."
+Domain expert: "No. A penalty shootout win gives 2 Match Points total."
 
 Dev: "Does the penalty shootout loser get a draw point?"
-Domain expert: "No. The shootout winner gets 1 Match Point and the loser gets 0."
+Domain expert: "Yes. The shootout winner gets 2 Match Points and the loser gets 1."
 
 Dev: "Are advancement points only for the semifinal and champion?"
 Domain expert: "No. The Pool uses configured Stage Bonuses for each meaningful tournament stage."
@@ -223,6 +223,9 @@ Domain expert: "Yes. Tier Multipliers can produce fractional scores."
 
 Dev: "How should fractional scores be shown?"
 Domain expert: "Scores use quarter-point increments and are shown without unnecessary trailing zeros."
+
+Dev: "What happens if two Participants have the same score?"
+Domain expert: "They share the same Leaderboard position."
 
 Dev: "What happens if synced tournament data is wrong?"
 Domain expert: "The Admin can create an Admin Override, and that takes precedence over the Synced Result."

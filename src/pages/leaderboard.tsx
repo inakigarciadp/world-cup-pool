@@ -7,12 +7,10 @@ export function LeaderboardPage() {
   const { overview } = useOverview()
   const myParticipantId = overview.session.participantId
   const myName = overview.session.participantName
-  const top = overview.leaderboard.slice(0, 3)
-  const rest = overview.leaderboard.slice(3)
-  const myRank = overview.leaderboard.findIndex(
-    (entry) => entry.participantId === myParticipantId,
-  )
-  const myEntry = myRank >= 0 ? overview.leaderboard[myRank] : null
+  const leaderboard = rankLeaderboard(overview.leaderboard)
+  const top = leaderboard.slice(0, 3)
+  const rest = leaderboard.slice(3)
+  const myEntry = leaderboard.find((entry) => entry.participantId === myParticipantId) ?? null
 
   return (
     <section className="space-y-6">
@@ -20,7 +18,7 @@ export function LeaderboardPage() {
 
       <HeroCard
         myName={myName}
-        myRank={myRank + 1}
+        myRank={myEntry?.rank ?? 0}
         myScore={myEntry?.currentScore ?? 0}
         hasEntry={myEntry?.entryId != null}
         submitted={myEntry?.submittedAt != null}
@@ -35,12 +33,11 @@ export function LeaderboardPage() {
         <div className="space-y-3">
           <div className="section-label">El resto</div>
           <ul className="space-y-2.5">
-            {rest.map((entry, index) => {
-              const rank = index + 4
+            {rest.map((entry) => {
               const isMe = entry.participantId === myParticipantId
               const content = (
                 <>
-                  <span className="rank-circle">{rank}</span>
+                  <span className="rank-circle">{formatRank(entry.rank)}</span>
                   <span className="min-w-0">
                     <span className="block truncate font-heading text-sm font-bold">
                       {entry.participantName}
@@ -150,13 +147,11 @@ function Podium({
   top,
   myParticipantId,
 }: {
-  top: Overview['leaderboard']
+  top: RankedLeaderboardEntry[]
   myParticipantId: string
 }) {
   if (top.length === 0) return null
   const order = [1, 0, 2]
-  const labels = ['2º', '1º', '3º']
-
   return (
     <div className="leaderboard-podium">
       {order.map((topIndex, slot) => {
@@ -167,8 +162,8 @@ function Podium({
         const isMe = entry.participantId === myParticipantId
         const content = (
           <>
-            <span className="podium-place" aria-label={labels[slot]}>
-              {topIndex + 1}
+            <span className="podium-place" aria-label={formatRankLabel(entry.rank)}>
+              {formatRank(entry.rank)}
             </span>
             <div className="podium-avatar">{getInitials(entry.participantName)}</div>
             <div className="min-w-0 text-center">
@@ -195,7 +190,7 @@ function Podium({
             <div
               key={entry.entryId ?? entry.participantId}
               className="podium-step"
-              data-place={topIndex + 1}
+              data-place={entry.rank || topIndex + 1}
             >
               {content}
             </div>
@@ -209,7 +204,7 @@ function Podium({
             search={{ participantId: entry.participantId }}
             aria-label={`Ver apuesta de ${entry.participantName}`}
             className="podium-step"
-            data-place={topIndex + 1}
+            data-place={entry.rank || topIndex + 1}
           >
             {content}
           </Link>
@@ -217,6 +212,37 @@ function Podium({
       })}
     </div>
   )
+}
+
+type RankedLeaderboardEntry = Overview['leaderboard'][number] & { rank: number }
+
+function rankLeaderboard(entries: Overview['leaderboard']): RankedLeaderboardEntry[] {
+  let previousScore: number | null = null
+  let previousRank = 0
+  let scoredEntries = 0
+
+  return entries.map((entry) => {
+    if (entry.entryId === null) {
+      return { ...entry, rank: 0 }
+    }
+
+    scoredEntries += 1
+
+    if (previousScore === null || entry.currentScore !== previousScore) {
+      previousRank = scoredEntries
+      previousScore = entry.currentScore
+    }
+
+    return { ...entry, rank: previousRank }
+  })
+}
+
+function formatRank(rank: number) {
+  return rank > 0 ? rank : '—'
+}
+
+function formatRankLabel(rank: number) {
+  return rank > 0 ? `${rank}º` : 'Sin posición'
 }
 
 function firstName(full: string) {
