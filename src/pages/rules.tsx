@@ -6,8 +6,8 @@ const matchPoints = [
   ['Victoria en partido', '3 pts'],
   ['Empate', '1 pt'],
   ['Derrota', '0 pts'],
-  ['Victoria en penaltis', '1 pt total'],
-  ['Derrota en penaltis', '0 pts'],
+  ['Victoria en penaltis', '2 pts'],
+  ['Derrota en penaltis', '1 pt'],
 ]
 
 const stageBonuses = [
@@ -15,6 +15,7 @@ const stageBonuses = [
   ['Octavos', '+7,5'],
   ['Cuartos', '+10'],
   ['Semifinales', '+15'],
+  ['Final', '+17,5'],
   ['Campeón', '+20'],
 ]
 
@@ -86,6 +87,10 @@ export function RulesPage() {
           </div>
           <h3>Los partidos dan ritmo</h3>
           <p>Primero se mira el resultado de cada una de tus selecciones.</p>
+          <p className="mt-3 text-xs font-semibold italic text-ink-soft">
+            En una tanda, el ganador suma el empate más el premio de penaltis: 2 puntos. El perdedor
+            conserva 1 punto por el empate en el partido.
+          </p>
           <div className="rule-list">
             {matchPoints.map(([label, value]) => (
               <div key={label} className="rule-list-row">
@@ -148,7 +153,8 @@ export function RulesPage() {
         </div>
         <p className="mt-4 text-sm leading-6 text-ink-soft">
           La clasificación suma todo: selecciones, goleadores y bonus. Por eso pueden aparecer
-          decimales como 4,5 u 8,75 puntos.
+          decimales como 4,5 u 8,75 puntos. Si varias entradas acaban con los mismos puntos,
+          comparten posición en la clasificación.
         </p>
       </section>
     </section>
