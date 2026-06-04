@@ -206,6 +206,7 @@ jugador-tres / preview-tres
 - `pnpm matches:import:fifa`: dry-run the FIFA match import.
 - `pnpm matches:import:fifa:dev`: import FIFA matches into the dev Convex deployment.
 - `pnpm matches:import:fifa:prod`: import FIFA matches into the prod Convex deployment.
+- `pnpm matches:seed-results:dev`: seed deterministic full-tournament results, goals, and top scorer confirmations in the dev Convex deployment.
 - `pnpm users:add <username> [--admin]`: add a local participant row under `data/users.csv`.
 - `pnpm users:sync:dev`: hash local PINs and sync participants to the dev Convex deployment.
 - `pnpm users:sync:prod`: hash local PINs and sync participants to the prod Convex deployment.
