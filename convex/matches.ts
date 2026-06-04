@@ -106,6 +106,50 @@ export const getMatchesForHttp = internalQuery({
       goalsByMatchId.set(goal.matchId, [...(goalsByMatchId.get(goal.matchId) ?? []), goal])
     }
 
+    const goalsByPlayerId = new Map<Id<'eligiblePlayers'>, number>()
+
+    for (const goal of goals) {
+      if (goal.isOwnGoal) {
+        continue
+      }
+
+      const player = playersById.get(goal.creditedPlayerId) ?? null
+
+      if (player === null || !player.isActive) {
+        continue
+      }
+
+      goalsByPlayerId.set(
+        goal.creditedPlayerId,
+        (goalsByPlayerId.get(goal.creditedPlayerId) ?? 0) + 1,
+      )
+    }
+
+    const goalscorerLeaderboard = Array.from(goalsByPlayerId.entries())
+      .map(([playerId, goals]) => {
+        const player = playersById.get(playerId)
+
+        if (player === undefined) {
+          return null
+        }
+
+        const team = resolvePlayerTeam(player, teamsById, teamsByCode, teamsByName)
+
+        return {
+          playerId,
+          playerName: player.name,
+          teamId: team?._id ?? null,
+          teamName: team?.name ?? player.teamName,
+          teamFifaCode: team?.fifaCode ?? player.teamFifaCode ?? '',
+          goals,
+        }
+      })
+      .filter(isPresent)
+      .sort(
+        (left, right) =>
+          right.goals - left.goals || left.playerName.localeCompare(right.playerName),
+      )
+
     return {
       session: {
         participantId: participant._id,
@@ -134,6 +178,7 @@ export const getMatchesForHttp = internalQuery({
             teamFifaCode: team?.fifaCode ?? player.teamFifaCode ?? '',
           }
         }),
+      goalscorerLeaderboard,
       matches: matches.map((match) => {
         const homeTeam =
           match.homeTeamId === null ? null : (teamsById.get(match.homeTeamId) ?? null)

@@ -93,6 +93,14 @@ export type MatchesPayload = {
     teamName: string
     teamFifaCode: string
   }>
+  goalscorerLeaderboard: Array<{
+    playerId: string
+    playerName: string
+    teamId: string | null
+    teamName: string
+    teamFifaCode: string
+    goals: number
+  }>
   matches: Match[]
 }
 

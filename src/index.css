@@ -1302,6 +1302,130 @@
     font-weight: 800;
   }
 
+  .goalscorer-board {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    border-radius: 1.45rem;
+    border: 1px solid var(--hairline);
+    background:
+      radial-gradient(22rem 14rem at 100% 0%, oklch(0.88 0.125 82 / 0.34), transparent 62%),
+      var(--surface);
+    padding: 1rem;
+    box-shadow: var(--shadow-sticker);
+    overflow: hidden;
+  }
+
+  .goalscorer-board-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    border-radius: 1.25rem;
+    background: var(--paper-deep);
+    padding: 1rem;
+  }
+  .goalscorer-board-head h2 {
+    margin-top: 0.3rem;
+    font-family: var(--font-display);
+    font-size: clamp(1.7rem, 7vw, 2.4rem);
+    line-height: 0.95;
+    color: var(--coral-ink);
+  }
+  .goalscorer-board-head p:last-child {
+    margin-top: 0.45rem;
+    max-width: 24rem;
+    font-family: var(--font-heading);
+    font-size: 0.88rem;
+    font-weight: 700;
+    line-height: 1.35;
+    color: var(--ink-soft);
+  }
+
+  .goalscorer-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .goalscorer-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border-radius: 1.15rem;
+    border: 1px dashed var(--hairline);
+    background: var(--surface);
+    padding: 0.7rem;
+  }
+  .goalscorer-row.is-leading {
+    border-style: solid;
+    border-color: oklch(0.69 0.155 33 / 0.38);
+    background:
+      linear-gradient(95deg, oklch(0.69 0.155 33 / 0.16) 0 8rem, transparent 16rem), var(--surface);
+  }
+
+  .goalscorer-rank {
+    display: grid;
+    place-items: center;
+    width: 2.45rem;
+    height: 2.45rem;
+    flex: 0 0 auto;
+    border-radius: 999px;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: var(--font-display);
+    font-size: 1rem;
+    box-shadow: 0 3px 0 var(--coral);
+  }
+
+  .goalscorer-row h3 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    font-weight: 900;
+    line-height: 1.05;
+  }
+  .goalscorer-row p {
+    margin-top: 0.18rem;
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--ink-soft);
+    font-family: var(--font-heading);
+    font-size: 0.78rem;
+    font-weight: 800;
+  }
+
+  .goalscorer-total {
+    display: flex;
+    min-width: 4.2rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 1rem;
+    background: var(--sun);
+    color: var(--sun-ink);
+    padding: 0.45rem 0.55rem;
+    box-shadow: 0 3px 0 oklch(0.32 0.07 65 / 0.35);
+  }
+  .goalscorer-total span {
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    line-height: 0.9;
+  }
+  .goalscorer-total small {
+    margin-top: 0.2rem;
+    font-family: var(--font-heading);
+    font-size: 0.62rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
   .match-card {
     position: relative;
     border-radius: 1.45rem;
