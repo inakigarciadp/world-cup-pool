@@ -180,7 +180,8 @@ credentialed CORS. Production should still use exact `SITE_ORIGINS` values and t
 `CONVEX_SITE_URL_FOR_PROXY` Vercel variable for same-origin API rewrites.
 
 When a new preview backend is created, `pools:seedPreview` inserts the base pool, teams, sample
-eligible players, and demo users:
+eligible players, invented preview matches (including upcoming matches and seeded results/goals),
+and demo users:
 
 ```text
 admin / preview-admin

@@ -89,6 +89,133 @@ const tierSeed = [
   { name: 'Bombo 4', requiredPicks: 2, multiplier: 1.75, sortOrder: 4 },
 ]
 
+type PreviewMatchSeed = {
+  matchNumber: number
+  offsetMs: number
+  stage: string
+  groupName: string | null
+  venueName: string
+  venueCity: string
+  homeTeamFifaCode: string
+  awayTeamFifaCode: string
+  result?: {
+    homeGoals: number
+    awayGoals: number
+    goals: Array<{
+      scoringTeamFifaCode: string
+      creditedTeamFifaCode: string
+      playerPreviewIndex: number
+      minuteLabel: string
+      isOwnGoal?: boolean
+    }>
+  }
+}
+
+const previewMatchSeed: PreviewMatchSeed[] = [
+  {
+    matchNumber: 1001,
+    offsetMs: -24 * 60 * 60 * 1000,
+    stage: 'Fase de grupos',
+    groupName: 'Grupo Preview A',
+    venueName: 'Estadio Inventado del Atlántico',
+    venueCity: 'Ciudad Preview',
+    homeTeamFifaCode: 'ESP',
+    awayTeamFifaCode: 'MEX',
+    result: {
+      homeGoals: 2,
+      awayGoals: 1,
+      goals: [
+        {
+          scoringTeamFifaCode: 'ESP',
+          creditedTeamFifaCode: 'ESP',
+          playerPreviewIndex: 1,
+          minuteLabel: "18'",
+        },
+        {
+          scoringTeamFifaCode: 'MEX',
+          creditedTeamFifaCode: 'MEX',
+          playerPreviewIndex: 2,
+          minuteLabel: "54'",
+        },
+        {
+          scoringTeamFifaCode: 'ESP',
+          creditedTeamFifaCode: 'ESP',
+          playerPreviewIndex: 3,
+          minuteLabel: "82'",
+        },
+      ],
+    },
+  },
+  {
+    matchNumber: 1002,
+    offsetMs: -30 * 60 * 1000,
+    stage: 'Fase de grupos',
+    groupName: 'Grupo Preview B',
+    venueName: 'Arena del Sol Preview',
+    venueCity: 'Villa Demo',
+    homeTeamFifaCode: 'BRA',
+    awayTeamFifaCode: 'JPN',
+    result: {
+      homeGoals: 1,
+      awayGoals: 1,
+      goals: [
+        {
+          scoringTeamFifaCode: 'BRA',
+          creditedTeamFifaCode: 'BRA',
+          playerPreviewIndex: 1,
+          minuteLabel: "37'",
+        },
+        {
+          scoringTeamFifaCode: 'JPN',
+          creditedTeamFifaCode: 'JPN',
+          playerPreviewIndex: 1,
+          minuteLabel: "74'",
+        },
+      ],
+    },
+  },
+  {
+    matchNumber: 1003,
+    offsetMs: 90 * 60 * 1000,
+    stage: 'Fase de grupos',
+    groupName: 'Grupo Preview C',
+    venueName: 'Campo Norte de Pruebas',
+    venueCity: 'Puerto Fixture',
+    homeTeamFifaCode: 'ARG',
+    awayTeamFifaCode: 'MAR',
+  },
+  {
+    matchNumber: 1004,
+    offsetMs: 8 * 60 * 60 * 1000,
+    stage: 'Fase de grupos',
+    groupName: 'Grupo Preview D',
+    venueName: 'Estadio de la Maqueta',
+    venueCity: 'Bahía Mockup',
+    homeTeamFifaCode: 'FRA',
+    awayTeamFifaCode: 'SEN',
+  },
+  {
+    matchNumber: 1005,
+    offsetMs: 28 * 60 * 60 * 1000,
+    stage: 'Dieciseisavos de final',
+    groupName: null,
+    venueName: 'Parque Bracket Preview',
+    venueCity: 'Nueva Prueba',
+    homeTeamFifaCode: 'ENG',
+    awayTeamFifaCode: 'URU',
+  },
+  {
+    matchNumber: 1006,
+    offsetMs: 4 * 24 * 60 * 60 * 1000,
+    stage: 'Cuartos de final',
+    groupName: null,
+    venueName: 'Coliseo Ficticio',
+    venueCity: 'Costa Demo',
+    homeTeamFifaCode: 'POR',
+    awayTeamFifaCode: 'GER',
+  },
+]
+
 export const getAuthenticatedOverview = internalQuery({
   args: {
     poolId: v.id('pools'),
@@ -745,11 +872,17 @@ export const seedPreview = mutation({
   handler: async (ctx) => {
     const pool = await getOrCreatePool(ctx, DEMO_SLUG)
     const { teamsByName } = await ensurePreviewEligiblePlayers(ctx, pool._id)
+    const previewMatches = await ensurePreviewMatches(ctx, pool._id)
     const users = [
       { username: 'admin', displayName: 'Admin Preview', pin: 'preview-admin', isAdmin: true },
       { username: 'jugador-uno', displayName: 'Jugador Uno', pin: 'preview-uno', isAdmin: false },
       { username: 'jugador-dos', displayName: 'Jugador Dos', pin: 'preview-dos', isAdmin: false },
-      { username: 'jugador-tres', displayName: 'Jugador Tres', pin: 'preview-tres', isAdmin: false },
+      {
+        username: 'jugador-tres',
+        displayName: 'Jugador Tres',
+        pin: 'preview-tres',
+        isAdmin: false,
+      },
     ]
     let insertedParticipants = 0
     let updatedParticipants = 0
@@ -780,6 +913,7 @@ export const seedPreview = mutation({
     return {
       poolId: pool._id,
       teams: teamsByName.size,
+      previewMatches,
       insertedParticipants,
       updatedParticipants,
     }
@@ -915,6 +1049,156 @@ async function ensurePreviewEligiblePlayers(ctx: MutationCtx, poolId: Id<'pools'
   }
 
   return { teamsByName }
+}
+
+async function ensurePreviewMatches(ctx: MutationCtx, poolId: Id<'pools'>) {
+  const now = Date.now()
+  const teams = await ctx.db
+    .query('teams')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .take(200)
+  const eligiblePlayers = await ctx.db
+    .query('eligiblePlayers')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .take(2000)
+  const existingMatches = await ctx.db
+    .query('matches')
+    .withIndex('by_poolId_and_matchNumber', (q) => q.eq('poolId', poolId))
+    .take(200)
+  const teamsByCode = new Map(teams.map((team) => [team.fifaCode.toUpperCase(), team]))
+  const playersByTeamCode = new Map<string, Doc<'eligiblePlayers'>[]>()
+  const existingByMatchNumber = new Map(existingMatches.map((match) => [match.matchNumber, match]))
+  let inserted = 0
+  let updated = 0
+
+  for (const player of eligiblePlayers) {
+    const teamCode = player.teamFifaCode?.toUpperCase()
+
+    if (teamCode === undefined) {
+      continue
+    }
+
+    playersByTeamCode.set(teamCode, [...(playersByTeamCode.get(teamCode) ?? []), player])
+  }
+
+  for (const players of playersByTeamCode.values()) {
+    players.sort((left, right) => left.name.localeCompare(right.name))
+  }
+
+  for (const seed of previewMatchSeed) {
+    const homeTeam = teamsByCode.get(seed.homeTeamFifaCode)
+    const awayTeam = teamsByCode.get(seed.awayTeamFifaCode)
+
+    if (homeTeam === undefined || awayTeam === undefined) {
+      throw new Error('No se han podido preparar los partidos de preview.')
+    }
+
+    const existing = existingByMatchNumber.get(seed.matchNumber) ?? null
+    const payload = {
+      poolId,
+      matchNumber: seed.matchNumber,
+      fifaMatchId: `preview-${seed.matchNumber}`,
+      stage: seed.stage,
+      groupName: seed.groupName,
+      kickoffAt: now + seed.offsetMs,
+      venueName: seed.venueName,
+      venueCity: seed.venueCity,
+      homePlaceholder: homeTeam.name,
+      awayPlaceholder: awayTeam.name,
+      homeTeamId: homeTeam._id,
+      awayTeamId: awayTeam._id,
+      source: 'Preview inventado',
+      sourceUrl: 'https://example.com/world-cup-pool-preview',
+      sourceUpdatedAt: now,
+    }
+    const matchId = existing === null ? await ctx.db.insert('matches', payload) : existing._id
+
+    if (existing === null) {
+      const created = await ctx.db.get(matchId)
+      if (created !== null) {
+        existingByMatchNumber.set(seed.matchNumber, created)
+      }
+      inserted += 1
+    } else {
+      await ctx.db.patch(existing._id, payload)
+      updated += 1
+    }
+
+    if (seed.result !== undefined) {
+      await ensurePreviewMatchResult(ctx, {
+        poolId,
+        matchId,
+        result: seed.result,
+        teamsByCode,
+        playersByTeamCode,
+        now,
+      })
+    }
+  }
+
+  return {
+    inserted,
+    updated,
+  }
+}
+
+async function ensurePreviewMatchResult(
+  ctx: MutationCtx,
+  args: {
+    poolId: Id<'pools'>
+    matchId: Id<'matches'>
+    result: NonNullable<PreviewMatchSeed['result']>
+    teamsByCode: Map<string, Doc<'teams'>>
+    playersByTeamCode: Map<string, Doc<'eligiblePlayers'>[]>
+    now: number
+  },
+) {
+  const existingResult = await ctx.db
+    .query('matchResults')
+    .withIndex('by_matchId', (q) => q.eq('matchId', args.matchId))
+    .unique()
+  const existingGoals = await ctx.db
+    .query('matchGoals')
+    .withIndex('by_matchId_and_sortOrder', (q) => q.eq('matchId', args.matchId))
+    .take(100)
+
+  if (existingResult === null) {
+    await ctx.db.insert('matchResults', {
+      poolId: args.poolId,
+      matchId: args.matchId,
+      homeGoals: args.result.homeGoals,
+      awayGoals: args.result.awayGoals,
+      penaltyShootoutWinnerTeamId: null,
+      updatedAt: args.now,
+      updatedByParticipantId: null,
+    })
+  }
+
+  if (existingGoals.length > 0) {
+    return
+  }
+
+  for (const [index, goal] of args.result.goals.entries()) {
+    const scoringTeam = args.teamsByCode.get(goal.scoringTeamFifaCode)
+    const creditedPlayers = args.playersByTeamCode.get(goal.creditedTeamFifaCode) ?? []
+    const creditedPlayer = creditedPlayers[goal.playerPreviewIndex - 1]
+
+    if (scoringTeam === undefined || creditedPlayer === undefined) {
+      throw new Error('No se han podido preparar los goles de preview.')
+    }
+
+    await ctx.db.insert('matchGoals', {
+      poolId: args.poolId,
+      matchId: args.matchId,
+      scoringTeamId: scoringTeam._id,
+      creditedPlayerId: creditedPlayer._id,
+      isOwnGoal: goal.isOwnGoal ?? false,
+      minuteLabel: goal.minuteLabel,
+      sortOrder: index + 1,
+      updatedAt: args.now,
+      updatedByParticipantId: null,
+    })
+  }
 }
 
 async function getOrCreatePool(ctx: MutationCtx, slug: string) {
