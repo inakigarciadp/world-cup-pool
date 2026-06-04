@@ -7,9 +7,14 @@ import { requireAdminScriptSecret } from './adminScriptAuth'
 
 const DEMO_SLUG = 'world-cup-2026'
 const DEFAULT_MATCH_WINDOW_MS = 3 * 60 * 60 * 1000
+const DEFAULT_TOURNAMENT_RESULT_SEED = 'world-cup-pool-2026-dev-results-v1'
 const MAX_MATCHES = 200
 const MAX_GOALS_PER_MATCH = 40
 const MAX_TOP_SCORER_CONFIRMATIONS = 200
+const MAX_SEED_PLAYERS = 2500
+const MAX_SEED_PARTICIPANTS = 100
+const MAX_SEED_WARNINGS = 20
+const THIRD_PLACE_QUALIFIERS = 8
 
 type AuthenticatedContext = {
   pool: Doc<'pools'>
@@ -31,6 +36,52 @@ type ImportedMatch = {
   source: string
   sourceUrl: string
   sourceUpdatedAt: number
+}
+
+type GroupStats = {
+  team: Doc<'teams'>
+  played: number
+  wins: number
+  draws: number
+  losses: number
+  points: number
+  goalsFor: number
+  goalsAgainst: number
+}
+
+type GroupRankingContext = {
+  rankingsByGroup: Map<string, GroupStats[]>
+  thirdPlaceCandidates: GroupStats[]
+}
+
+type GeneratedResult = {
+  homeGoals: number
+  awayGoals: number
+  penaltyShootoutWinnerTeamId: Id<'teams'> | null
+  winnerTeamId: Id<'teams'> | null
+  loserTeamId: Id<'teams'> | null
+}
+
+type GeneratedGoal = {
+  scoringTeamId: Id<'teams'>
+  creditedPlayerId: Id<'eligiblePlayers'>
+  isOwnGoal: boolean
+  minuteLabel: string
+  sortOrder: number
+}
+
+type SeedPlayerState = {
+  playersById: Map<Id<'eligiblePlayers'>, Doc<'eligiblePlayers'>>
+  playersByTeamId: Map<Id<'teams'>, Doc<'eligiblePlayers'>[]>
+  playersByTeamAndName: Map<string, Doc<'eligiblePlayers'>>
+  insertedPlaceholderPlayers: number
+  activatedPlaceholderPlayers: number
+}
+
+type GeneratedTopScorer = {
+  player: Doc<'eligiblePlayers'>
+  team: Doc<'teams'> | null
+  goals: number
 }
 
 export const getMatchesForHttp = internalQuery({
@@ -636,6 +687,1135 @@ export const importFifaMatchesForAdmin = mutation({
     }
   },
 })
+
+export const seedDeterministicTournamentResultsForAdmin = mutation({
+  args: {
+    scriptSecret: v.string(),
+    slug: v.optional(v.string()),
+    seed: v.optional(v.string()),
+    confirmTopScorers: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    requireAdminScriptSecret(args.scriptSecret)
+
+    const seed = normalizeSeed(args.seed)
+    const shouldConfirmTopScorers = args.confirmTopScorers ?? true
+    const now = Date.now()
+    const warnings: string[] = []
+    const pool = await ctx.db
+      .query('pools')
+      .withIndex('by_slug', (q) => q.eq('slug', args.slug ?? DEMO_SLUG))
+      .unique()
+
+    if (pool === null) {
+      throw new Error('No se ha encontrado la porra. Sincroniza participantes primero.')
+    }
+
+    const matches = await ctx.db
+      .query('matches')
+      .withIndex('by_poolId_and_matchNumber', (q) => q.eq('poolId', pool._id))
+      .take(MAX_MATCHES)
+    const teams = await ctx.db
+      .query('teams')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(200)
+    const tiers = await ctx.db
+      .query('teamTiers')
+      .withIndex('by_poolId_and_sortOrder', (q) => q.eq('poolId', pool._id))
+      .take(25)
+    const eligiblePlayers = await ctx.db
+      .query('eligiblePlayers')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(MAX_SEED_PLAYERS)
+    const participants = await ctx.db
+      .query('participants')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(MAX_SEED_PARTICIPANTS)
+    const existingResults = await ctx.db
+      .query('matchResults')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(MAX_MATCHES)
+
+    const tournamentMatches = matches
+      .filter(isSeedTournamentMatch)
+      .sort((left, right) => left.matchNumber - right.matchNumber)
+
+    if (tournamentMatches.length === 0) {
+      throw new Error('No hay partidos importados para sembrar resultados.')
+    }
+
+    const teamsById = new Map(teams.map((team) => [team._id, team]))
+    const teamsByCode = new Map(teams.map((team) => [team.fifaCode.toUpperCase(), team]))
+    const teamsByName = new Map(teams.map((team) => [team.name, team]))
+    const tiersById = new Map(tiers.map((tier) => [tier._id, tier]))
+    const existingResultsByMatchId = new Map(
+      existingResults.map((result) => [result.matchId, result]),
+    )
+    const playerState = createSeedPlayerState(eligiblePlayers, teamsById, teamsByCode, teamsByName)
+    const groupStatsByTeamId = initializeGroupStats(teams)
+    const winnersByMatchNumber = new Map<number, Id<'teams'>>()
+    const losersByMatchNumber = new Map<number, Id<'teams'>>()
+    const usedThirdPlaceTeamIds = new Set<Id<'teams'>>()
+    const generatedGoalsByPlayerId = new Map<Id<'eligiblePlayers'>, number>()
+    let groupRankingContext: GroupRankingContext | null = null
+    let matchTeamsUpdated = 0
+    let resultsInserted = 0
+    let resultsUpdated = 0
+    let goalsDeleted = 0
+    let goalsInserted = 0
+
+    for (const match of tournamentMatches) {
+      const groupStage = isGroupStage(match)
+
+      if (!groupStage && groupRankingContext === null) {
+        groupRankingContext = buildGroupRankingContext(groupStatsByTeamId, tiersById)
+      }
+
+      const homeTeam = resolveSeedMatchTeam({
+        match,
+        side: 'home',
+        groupStage,
+        groupRankingContext,
+        teamsById,
+        teamsByCode,
+        teamsByName,
+        winnersByMatchNumber,
+        losersByMatchNumber,
+        usedThirdPlaceTeamIds,
+        warnings,
+      })
+      const awayTeam = resolveSeedMatchTeam({
+        match,
+        side: 'away',
+        groupStage,
+        groupRankingContext,
+        teamsById,
+        teamsByCode,
+        teamsByName,
+        winnersByMatchNumber,
+        losersByMatchNumber,
+        usedThirdPlaceTeamIds,
+        warnings,
+      })
+
+      if (homeTeam._id === awayTeam._id) {
+        throw new Error(`El partido ${match.matchNumber} tiene dos veces a ${homeTeam.name}.`)
+      }
+
+      if (match.homeTeamId !== homeTeam._id || match.awayTeamId !== awayTeam._id) {
+        await ctx.db.patch(match._id, {
+          homeTeamId: homeTeam._id,
+          awayTeamId: awayTeam._id,
+        })
+        matchTeamsUpdated += 1
+      }
+
+      const result = generateSeededResult({
+        seed,
+        match,
+        homeTeam,
+        awayTeam,
+        tiersById,
+      })
+      const existingResult = existingResultsByMatchId.get(match._id) ?? null
+      const resultPayload = {
+        poolId: pool._id,
+        matchId: match._id,
+        homeGoals: result.homeGoals,
+        awayGoals: result.awayGoals,
+        penaltyShootoutWinnerTeamId: result.penaltyShootoutWinnerTeamId,
+        updatedAt: now,
+        updatedByParticipantId: null,
+      }
+
+      if (existingResult === null) {
+        await ctx.db.insert('matchResults', resultPayload)
+        resultsInserted += 1
+      } else {
+        await ctx.db.patch(existingResult._id, resultPayload)
+        resultsUpdated += 1
+      }
+
+      const existingGoals = await ctx.db
+        .query('matchGoals')
+        .withIndex('by_matchId_and_sortOrder', (q) => q.eq('matchId', match._id))
+        .take(MAX_GOALS_PER_MATCH)
+
+      if (existingGoals.length === MAX_GOALS_PER_MATCH) {
+        addSeedWarning(
+          warnings,
+          `El partido ${match.matchNumber} tenía ${MAX_GOALS_PER_MATCH} goles existentes; solo se ha reemplazado ese lote acotado.`,
+        )
+      }
+
+      for (const goal of existingGoals) {
+        await ctx.db.delete(goal._id)
+        goalsDeleted += 1
+      }
+
+      if (result.homeGoals + result.awayGoals > 0) {
+        await ensureActiveSeedPlayersForTeam(ctx, {
+          poolId: pool._id,
+          team: homeTeam,
+          state: playerState,
+          now,
+        })
+        await ensureActiveSeedPlayersForTeam(ctx, {
+          poolId: pool._id,
+          team: awayTeam,
+          state: playerState,
+          now,
+        })
+      }
+
+      const generatedGoals = generateSeededGoalsForMatch({
+        seed,
+        match,
+        homeTeam,
+        awayTeam,
+        result,
+        playersByTeamId: playerState.playersByTeamId,
+      })
+
+      for (const goal of generatedGoals) {
+        await ctx.db.insert('matchGoals', {
+          poolId: pool._id,
+          matchId: match._id,
+          scoringTeamId: goal.scoringTeamId,
+          creditedPlayerId: goal.creditedPlayerId,
+          isOwnGoal: goal.isOwnGoal,
+          minuteLabel: goal.minuteLabel,
+          sortOrder: goal.sortOrder,
+          updatedAt: now,
+          updatedByParticipantId: null,
+        })
+        goalsInserted += 1
+
+        if (!goal.isOwnGoal) {
+          addPoints(generatedGoalsByPlayerId, goal.creditedPlayerId, 1)
+        }
+      }
+
+      if (groupStage) {
+        updateGroupStats(groupStatsByTeamId, homeTeam, awayTeam, result)
+      }
+
+      if (result.winnerTeamId !== null) {
+        winnersByMatchNumber.set(match.matchNumber, result.winnerTeamId)
+      }
+
+      if (result.loserTeamId !== null) {
+        losersByMatchNumber.set(match.matchNumber, result.loserTeamId)
+      }
+    }
+
+    const topScorers = getGeneratedTopScorers({
+      goalsByPlayerId: generatedGoalsByPlayerId,
+      playersById: playerState.playersById,
+      teamsById,
+      teamsByCode,
+      teamsByName,
+    })
+    let topScorerConfirmationsDeleted = 0
+    let topScorerConfirmationsInserted = 0
+
+    if (shouldConfirmTopScorers) {
+      const existingConfirmations = await ctx.db
+        .query('topScorerConfirmations')
+        .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+        .take(MAX_TOP_SCORER_CONFIRMATIONS)
+
+      for (const confirmation of existingConfirmations) {
+        await ctx.db.delete(confirmation._id)
+        topScorerConfirmationsDeleted += 1
+      }
+
+      const confirmationParticipant =
+        participants.find((participant) => participant.isAdmin) ?? participants[0] ?? null
+
+      if (confirmationParticipant === null && topScorers.length > 0) {
+        addSeedWarning(
+          warnings,
+          'Se han omitido las confirmaciones de máximos goleadores porque la porra no tiene participantes.',
+        )
+      }
+
+      if (confirmationParticipant !== null) {
+        for (const topScorer of topScorers) {
+          await ctx.db.insert('topScorerConfirmations', {
+            poolId: pool._id,
+            eligiblePlayerId: topScorer.player._id,
+            confirmedAt: now,
+            confirmedByParticipantId: confirmationParticipant._id,
+          })
+          topScorerConfirmationsInserted += 1
+        }
+      }
+    }
+
+    const championTeamId = winnersByMatchNumber.get(104) ?? null
+    const champion = championTeamId === null ? null : (teamsById.get(championTeamId) ?? null)
+
+    return {
+      poolId: pool._id,
+      seed,
+      matchesProcessed: tournamentMatches.length,
+      matchTeamsUpdated,
+      resultsInserted,
+      resultsUpdated,
+      goalsDeleted,
+      goalsInserted,
+      placeholderPlayersInserted: playerState.insertedPlaceholderPlayers,
+      placeholderPlayersActivated: playerState.activatedPlaceholderPlayers,
+      topScorerConfirmationsDeleted,
+      topScorerConfirmationsInserted,
+      champion:
+        champion === null
+          ? null
+          : {
+              teamId: champion._id,
+              teamName: champion.name,
+              teamFifaCode: champion.fifaCode,
+            },
+      topScorers: topScorers.map((topScorer) => ({
+        eligiblePlayerId: topScorer.player._id,
+        playerName: topScorer.player.name,
+        teamName: topScorer.team?.name ?? topScorer.player.teamName,
+        teamFifaCode: topScorer.team?.fifaCode ?? topScorer.player.teamFifaCode ?? '',
+        goals: topScorer.goals,
+      })),
+      warnings,
+    }
+  },
+})
+
+function normalizeSeed(value: string | undefined) {
+  const trimmed = value?.trim() ?? ''
+  return trimmed.length > 0 ? trimmed : DEFAULT_TOURNAMENT_RESULT_SEED
+}
+
+function isSeedTournamentMatch(match: Doc<'matches'>) {
+  return match.matchNumber >= 1 && match.matchNumber <= 104
+}
+
+function isGroupStage(match: Doc<'matches'>) {
+  return match.stage === 'First Stage' || match.groupName !== null
+}
+
+function createSeedPlayerState(
+  eligiblePlayers: Doc<'eligiblePlayers'>[],
+  teamsById: Map<Id<'teams'>, Doc<'teams'>>,
+  teamsByCode: Map<string, Doc<'teams'>>,
+  teamsByName: Map<string, Doc<'teams'>>,
+): SeedPlayerState {
+  const playersById = new Map(eligiblePlayers.map((player) => [player._id, player]))
+  const playersByTeamId = new Map<Id<'teams'>, Doc<'eligiblePlayers'>[]>()
+  const playersByTeamAndName = new Map<string, Doc<'eligiblePlayers'>>()
+
+  for (const player of eligiblePlayers) {
+    const team = resolvePlayerTeam(player, teamsById, teamsByCode, teamsByName)
+
+    if (team === null) {
+      continue
+    }
+
+    playersByTeamAndName.set(seedPlayerKey(team, player.name), player)
+
+    if (!player.isActive) {
+      continue
+    }
+
+    playersByTeamId.set(team._id, [...(playersByTeamId.get(team._id) ?? []), player])
+  }
+
+  for (const players of playersByTeamId.values()) {
+    sortSeedPlayers(players)
+  }
+
+  return {
+    playersById,
+    playersByTeamId,
+    playersByTeamAndName,
+    insertedPlaceholderPlayers: 0,
+    activatedPlaceholderPlayers: 0,
+  }
+}
+
+async function ensureActiveSeedPlayersForTeam(
+  ctx: MutationCtx,
+  args: {
+    poolId: Id<'pools'>
+    team: Doc<'teams'>
+    state: SeedPlayerState
+    now: number
+  },
+) {
+  const activePlayers = args.state.playersByTeamId.get(args.team._id) ?? []
+
+  if (activePlayers.length > 0) {
+    return activePlayers
+  }
+
+  const seededPlayers: Doc<'eligiblePlayers'>[] = []
+
+  for (let index = 1; index <= 3; index += 1) {
+    const name = `Jugador simulado ${args.team.fifaCode} ${index}`
+    const key = seedPlayerKey(args.team, name)
+    const existing = args.state.playersByTeamAndName.get(key)
+    const payload = {
+      poolId: args.poolId,
+      name,
+      teamName: args.team.name,
+      teamId: args.team._id,
+      teamFifaCode: args.team.fifaCode,
+      isActive: true,
+    }
+
+    if (existing === undefined) {
+      const playerId = await ctx.db.insert('eligiblePlayers', payload)
+      const created = await ctx.db.get(playerId)
+
+      if (created === null) {
+        throw new Error('No se ha podido crear un goleador simulado.')
+      }
+
+      args.state.playersById.set(created._id, created)
+      args.state.playersByTeamAndName.set(key, created)
+      seededPlayers.push(created)
+      args.state.insertedPlaceholderPlayers += 1
+      continue
+    }
+
+    if (
+      !existing.isActive ||
+      existing.name !== payload.name ||
+      existing.teamName !== payload.teamName ||
+      existing.teamId !== payload.teamId ||
+      existing.teamFifaCode !== payload.teamFifaCode
+    ) {
+      await ctx.db.patch(existing._id, {
+        name: payload.name,
+        teamName: payload.teamName,
+        teamId: payload.teamId,
+        teamFifaCode: payload.teamFifaCode,
+        isActive: payload.isActive,
+      })
+    }
+
+    const updated = await ctx.db.get(existing._id)
+
+    if (updated === null) {
+      throw new Error('No se ha podido activar un goleador simulado.')
+    }
+
+    if (!existing.isActive) {
+      args.state.activatedPlaceholderPlayers += 1
+    }
+
+    args.state.playersById.set(updated._id, updated)
+    args.state.playersByTeamAndName.set(key, updated)
+    seededPlayers.push(updated)
+  }
+
+  sortSeedPlayers(seededPlayers)
+  args.state.playersByTeamId.set(args.team._id, seededPlayers)
+
+  return seededPlayers
+}
+
+function seedPlayerKey(team: Doc<'teams'>, playerName: string) {
+  return `${team._id}:${normalizeKey(playerName)}`
+}
+
+function sortSeedPlayers(players: Doc<'eligiblePlayers'>[]) {
+  players.sort((left, right) => left.name.localeCompare(right.name))
+}
+
+function initializeGroupStats(teams: Doc<'teams'>[]) {
+  const statsByTeamId = new Map<Id<'teams'>, GroupStats>()
+
+  for (const team of teams) {
+    statsByTeamId.set(team._id, createEmptyGroupStats(team))
+  }
+
+  return statsByTeamId
+}
+
+function createEmptyGroupStats(team: Doc<'teams'>): GroupStats {
+  return {
+    team,
+    played: 0,
+    wins: 0,
+    draws: 0,
+    losses: 0,
+    points: 0,
+    goalsFor: 0,
+    goalsAgainst: 0,
+  }
+}
+
+function updateGroupStats(
+  statsByTeamId: Map<Id<'teams'>, GroupStats>,
+  homeTeam: Doc<'teams'>,
+  awayTeam: Doc<'teams'>,
+  result: GeneratedResult,
+) {
+  const homeStats = getOrCreateGroupStats(statsByTeamId, homeTeam)
+  const awayStats = getOrCreateGroupStats(statsByTeamId, awayTeam)
+
+  homeStats.played += 1
+  awayStats.played += 1
+  homeStats.goalsFor += result.homeGoals
+  homeStats.goalsAgainst += result.awayGoals
+  awayStats.goalsFor += result.awayGoals
+  awayStats.goalsAgainst += result.homeGoals
+
+  if (result.homeGoals > result.awayGoals) {
+    homeStats.wins += 1
+    homeStats.points += 3
+    awayStats.losses += 1
+    return
+  }
+
+  if (result.awayGoals > result.homeGoals) {
+    awayStats.wins += 1
+    awayStats.points += 3
+    homeStats.losses += 1
+    return
+  }
+
+  homeStats.draws += 1
+  homeStats.points += 1
+  awayStats.draws += 1
+  awayStats.points += 1
+}
+
+function getOrCreateGroupStats(statsByTeamId: Map<Id<'teams'>, GroupStats>, team: Doc<'teams'>) {
+  const existing = statsByTeamId.get(team._id)
+
+  if (existing !== undefined) {
+    return existing
+  }
+
+  const created = createEmptyGroupStats(team)
+  statsByTeamId.set(team._id, created)
+  return created
+}
+
+function buildGroupRankingContext(
+  statsByTeamId: Map<Id<'teams'>, GroupStats>,
+  tiersById: Map<Id<'teamTiers'>, Doc<'teamTiers'>>,
+): GroupRankingContext {
+  const rankingsByGroup = new Map<string, GroupStats[]>()
+
+  for (const stats of statsByTeamId.values()) {
+    const groupCode = getTeamGroupCode(stats.team)
+
+    if (groupCode === '') {
+      continue
+    }
+
+    rankingsByGroup.set(groupCode, [...(rankingsByGroup.get(groupCode) ?? []), stats])
+  }
+
+  for (const ranking of rankingsByGroup.values()) {
+    ranking.sort((left, right) => compareGroupStats(left, right, tiersById))
+  }
+
+  const thirdPlaceCandidates = [...rankingsByGroup.values()]
+    .map((ranking) => ranking[2] ?? null)
+    .filter(isPresent)
+    .sort((left, right) => compareGroupStats(left, right, tiersById))
+
+  return {
+    rankingsByGroup,
+    thirdPlaceCandidates,
+  }
+}
+
+function resolveSeedMatchTeam(args: {
+  match: Doc<'matches'>
+  side: 'home' | 'away'
+  groupStage: boolean
+  groupRankingContext: GroupRankingContext | null
+  teamsById: Map<Id<'teams'>, Doc<'teams'>>
+  teamsByCode: Map<string, Doc<'teams'>>
+  teamsByName: Map<string, Doc<'teams'>>
+  winnersByMatchNumber: Map<number, Id<'teams'>>
+  losersByMatchNumber: Map<number, Id<'teams'>>
+  usedThirdPlaceTeamIds: Set<Id<'teams'>>
+  warnings: string[]
+}) {
+  const teamId = args.side === 'home' ? args.match.homeTeamId : args.match.awayTeamId
+  const placeholder = args.side === 'home' ? args.match.homePlaceholder : args.match.awayPlaceholder
+
+  if (args.groupStage && teamId !== null) {
+    const team = args.teamsById.get(teamId)
+
+    if (team === undefined) {
+      throw new Error(`El partido ${args.match.matchNumber} tiene una selección no válida.`)
+    }
+
+    return team
+  }
+
+  const normalizedPlaceholder = normalizeMatchPlaceholder(placeholder)
+  const winnerMatch = normalizedPlaceholder.match(/^W(\d+)$/)
+
+  if (winnerMatch !== null) {
+    return resolveReferencedSeedTeam({
+      matchNumber: Number(winnerMatch[1]),
+      source: 'winner',
+      referencedTeamsByMatchNumber: args.winnersByMatchNumber,
+      teamsById: args.teamsById,
+      currentMatchNumber: args.match.matchNumber,
+    })
+  }
+
+  const runnerUpMatch = normalizedPlaceholder.match(/^(?:RU|L)(\d+)$/)
+
+  if (runnerUpMatch !== null) {
+    return resolveReferencedSeedTeam({
+      matchNumber: Number(runnerUpMatch[1]),
+      source: 'runner-up',
+      referencedTeamsByMatchNumber: args.losersByMatchNumber,
+      teamsById: args.teamsById,
+      currentMatchNumber: args.match.matchNumber,
+    })
+  }
+
+  const exactGroupPosition = normalizedPlaceholder.match(/^([12])([A-L])$/)
+
+  if (exactGroupPosition !== null) {
+    return resolveGroupPositionSeedTeam({
+      rankingContext: args.groupRankingContext,
+      groupCode: exactGroupPosition[2],
+      position: Number(exactGroupPosition[1]),
+      matchNumber: args.match.matchNumber,
+    })
+  }
+
+  const thirdPlacePosition = normalizedPlaceholder.match(/^3([A-L]+)$/)
+
+  if (thirdPlacePosition !== null) {
+    return resolveThirdPlaceSeedTeam({
+      rankingContext: args.groupRankingContext,
+      allowedGroups: thirdPlacePosition[1].split(''),
+      usedThirdPlaceTeamIds: args.usedThirdPlaceTeamIds,
+      matchNumber: args.match.matchNumber,
+      warnings: args.warnings,
+    })
+  }
+
+  const teamByCode = args.teamsByCode.get(normalizedPlaceholder)
+
+  if (teamByCode !== undefined) {
+    return teamByCode
+  }
+
+  const teamByName = resolveTeamByName(args.teamsByName, placeholder)
+
+  if (teamByName !== null) {
+    return teamByName
+  }
+
+  if (teamId !== null) {
+    const existingTeam = args.teamsById.get(teamId)
+
+    if (existingTeam !== undefined) {
+      addSeedWarning(
+        args.warnings,
+        `El partido ${args.match.matchNumber} ha reutilizado una selección ya resuelta para "${placeholder}".`,
+      )
+      return existingTeam
+    }
+  }
+
+  throw new Error(
+    `No se ha podido resolver ${placeholder} en el partido ${args.match.matchNumber}.`,
+  )
+}
+
+function resolveReferencedSeedTeam(args: {
+  matchNumber: number
+  source: 'winner' | 'runner-up'
+  referencedTeamsByMatchNumber: Map<number, Id<'teams'>>
+  teamsById: Map<Id<'teams'>, Doc<'teams'>>
+  currentMatchNumber: number
+}) {
+  const teamId = args.referencedTeamsByMatchNumber.get(args.matchNumber)
+
+  if (teamId === undefined) {
+    throw new Error(
+      `No se ha podido resolver el ${args.source} del partido ${args.matchNumber} para el partido ${args.currentMatchNumber}.`,
+    )
+  }
+
+  const team = args.teamsById.get(teamId)
+
+  if (team === undefined) {
+    throw new Error(`El partido ${args.matchNumber} referencia una selección no válida.`)
+  }
+
+  return team
+}
+
+function resolveGroupPositionSeedTeam(args: {
+  rankingContext: GroupRankingContext | null
+  groupCode: string
+  position: number
+  matchNumber: number
+}) {
+  const ranking = args.rankingContext?.rankingsByGroup.get(args.groupCode)
+  const stats = ranking?.[args.position - 1]
+
+  if (stats === undefined) {
+    throw new Error(
+      `No se ha podido resolver ${args.position}${args.groupCode} en el partido ${args.matchNumber}.`,
+    )
+  }
+
+  return stats.team
+}
+
+function resolveThirdPlaceSeedTeam(args: {
+  rankingContext: GroupRankingContext | null
+  allowedGroups: string[]
+  usedThirdPlaceTeamIds: Set<Id<'teams'>>
+  matchNumber: number
+  warnings: string[]
+}) {
+  const rankingContext = args.rankingContext
+
+  if (rankingContext === null) {
+    throw new Error(
+      `No se han podido resolver terceros puestos para el partido ${args.matchNumber}.`,
+    )
+  }
+
+  const allowedGroups = new Set(args.allowedGroups)
+  const qualifiedThirds = rankingContext.thirdPlaceCandidates.slice(0, THIRD_PLACE_QUALIFIERS)
+  const candidate =
+    qualifiedThirds.find(
+      (stats) =>
+        allowedGroups.has(getTeamGroupCode(stats.team)) &&
+        !args.usedThirdPlaceTeamIds.has(stats.team._id),
+    ) ??
+    qualifiedThirds.find((stats) => !args.usedThirdPlaceTeamIds.has(stats.team._id)) ??
+    rankingContext.thirdPlaceCandidates.find(
+      (stats) => !args.usedThirdPlaceTeamIds.has(stats.team._id),
+    ) ??
+    null
+
+  if (candidate === null) {
+    throw new Error(`No quedan terceros puestos disponibles para el partido ${args.matchNumber}.`)
+  }
+
+  if (!allowedGroups.has(getTeamGroupCode(candidate.team))) {
+    addSeedWarning(
+      args.warnings,
+      `El partido ${args.matchNumber} ha usado ${candidate.team.fifaCode} como tercer puesto determinista fuera de ${args.allowedGroups.join('')}.`,
+    )
+  }
+
+  args.usedThirdPlaceTeamIds.add(candidate.team._id)
+  return candidate.team
+}
+
+function resolveTeamByName(teamsByName: Map<string, Doc<'teams'>>, name: string) {
+  const direct = teamsByName.get(name.trim())
+
+  if (direct !== undefined) {
+    return direct
+  }
+
+  const normalized = normalizeKey(name)
+
+  for (const team of teamsByName.values()) {
+    if (normalizeKey(team.name) === normalized) {
+      return team
+    }
+  }
+
+  return null
+}
+
+function normalizeMatchPlaceholder(value: string) {
+  return value.trim().toUpperCase().replace(/\s+/g, '')
+}
+
+function generateSeededResult(args: {
+  seed: string
+  match: Doc<'matches'>
+  homeTeam: Doc<'teams'>
+  awayTeam: Doc<'teams'>
+  tiersById: Map<Id<'teamTiers'>, Doc<'teamTiers'>>
+}): GeneratedResult {
+  const rng = createSeededRng(`${args.seed}:result:${args.match.matchNumber}`)
+  const strengthEdge = clamp(
+    (getTeamStrength(args.homeTeam, args.tiersById) -
+      getTeamStrength(args.awayTeam, args.tiersById)) *
+      0.16,
+    -0.22,
+    0.22,
+  )
+  const groupStage = isGroupStage(args.match)
+  const drawProbability = groupStage
+    ? clamp(0.26 - Math.abs(strengthEdge) * 0.25, 0.16, 0.3)
+    : clamp(0.22 - Math.abs(strengthEdge) * 0.18, 0.12, 0.24)
+
+  if (rng() < drawProbability) {
+    const drawGoals = drawDrawGoals(rng, groupStage)
+    const penaltyShootoutWinnerTeamId = groupStage
+      ? null
+      : rng() < clamp(0.5 + strengthEdge, 0.25, 0.75)
+        ? args.homeTeam._id
+        : args.awayTeam._id
+
+    return buildGeneratedResult(
+      args.homeTeam,
+      args.awayTeam,
+      drawGoals,
+      drawGoals,
+      penaltyShootoutWinnerTeamId,
+    )
+  }
+
+  const homeWins = rng() < clamp(0.5 + strengthEdge, 0.24, 0.76)
+  const winnerGoals = drawWinnerGoals(rng)
+  const loserGoals = drawLoserGoals(rng, winnerGoals)
+
+  return buildGeneratedResult(
+    args.homeTeam,
+    args.awayTeam,
+    homeWins ? winnerGoals : loserGoals,
+    homeWins ? loserGoals : winnerGoals,
+    null,
+  )
+}
+
+function buildGeneratedResult(
+  homeTeam: Doc<'teams'>,
+  awayTeam: Doc<'teams'>,
+  homeGoals: number,
+  awayGoals: number,
+  penaltyShootoutWinnerTeamId: Id<'teams'> | null,
+): GeneratedResult {
+  if (homeGoals > awayGoals) {
+    return {
+      homeGoals,
+      awayGoals,
+      penaltyShootoutWinnerTeamId: null,
+      winnerTeamId: homeTeam._id,
+      loserTeamId: awayTeam._id,
+    }
+  }
+
+  if (awayGoals > homeGoals) {
+    return {
+      homeGoals,
+      awayGoals,
+      penaltyShootoutWinnerTeamId: null,
+      winnerTeamId: awayTeam._id,
+      loserTeamId: homeTeam._id,
+    }
+  }
+
+  if (penaltyShootoutWinnerTeamId === homeTeam._id) {
+    return {
+      homeGoals,
+      awayGoals,
+      penaltyShootoutWinnerTeamId,
+      winnerTeamId: homeTeam._id,
+      loserTeamId: awayTeam._id,
+    }
+  }
+
+  if (penaltyShootoutWinnerTeamId === awayTeam._id) {
+    return {
+      homeGoals,
+      awayGoals,
+      penaltyShootoutWinnerTeamId,
+      winnerTeamId: awayTeam._id,
+      loserTeamId: homeTeam._id,
+    }
+  }
+
+  return {
+    homeGoals,
+    awayGoals,
+    penaltyShootoutWinnerTeamId: null,
+    winnerTeamId: null,
+    loserTeamId: null,
+  }
+}
+
+function drawDrawGoals(rng: () => number, groupStage: boolean) {
+  const roll = rng()
+
+  if (groupStage && roll < 0.22) {
+    return 0
+  }
+
+  if (roll < 0.62) {
+    return 1
+  }
+
+  if (roll < 0.88) {
+    return 2
+  }
+
+  return 3
+}
+
+function drawWinnerGoals(rng: () => number) {
+  const roll = rng()
+
+  if (roll < 0.28) {
+    return 1
+  }
+
+  if (roll < 0.68) {
+    return 2
+  }
+
+  if (roll < 0.9) {
+    return 3
+  }
+
+  if (roll < 0.98) {
+    return 4
+  }
+
+  return 5
+}
+
+function drawLoserGoals(rng: () => number, winnerGoals: number) {
+  if (winnerGoals <= 1) {
+    return 0
+  }
+
+  const weighted = rng() < 0.58 ? 0 : rng() < 0.86 ? 1 : 2
+  return Math.min(weighted, winnerGoals - 1)
+}
+
+function generateSeededGoalsForMatch(args: {
+  seed: string
+  match: Doc<'matches'>
+  homeTeam: Doc<'teams'>
+  awayTeam: Doc<'teams'>
+  result: GeneratedResult
+  playersByTeamId: Map<Id<'teams'>, Doc<'eligiblePlayers'>[]>
+}): GeneratedGoal[] {
+  const rng = createSeededRng(`${args.seed}:goals:${args.match.matchNumber}`)
+  const goals: Array<GeneratedGoal & { minute: number }> = []
+
+  for (let index = 0; index < args.result.homeGoals; index += 1) {
+    goals.push(
+      generateSeededGoalEvent({
+        rng,
+        groupStage: isGroupStage(args.match),
+        scoringTeam: args.homeTeam,
+        opponentTeam: args.awayTeam,
+        playersByTeamId: args.playersByTeamId,
+      }),
+    )
+  }
+
+  for (let index = 0; index < args.result.awayGoals; index += 1) {
+    goals.push(
+      generateSeededGoalEvent({
+        rng,
+        groupStage: isGroupStage(args.match),
+        scoringTeam: args.awayTeam,
+        opponentTeam: args.homeTeam,
+        playersByTeamId: args.playersByTeamId,
+      }),
+    )
+  }
+
+  return goals
+    .sort(
+      (left, right) =>
+        left.minute - right.minute ||
+        String(left.scoringTeamId).localeCompare(String(right.scoringTeamId)),
+    )
+    .map((goal, index) => ({
+      scoringTeamId: goal.scoringTeamId,
+      creditedPlayerId: goal.creditedPlayerId,
+      isOwnGoal: goal.isOwnGoal,
+      minuteLabel: formatMinuteLabel(goal.minute),
+      sortOrder: index,
+    }))
+}
+
+function generateSeededGoalEvent(args: {
+  rng: () => number
+  groupStage: boolean
+  scoringTeam: Doc<'teams'>
+  opponentTeam: Doc<'teams'>
+  playersByTeamId: Map<Id<'teams'>, Doc<'eligiblePlayers'>[]>
+}): GeneratedGoal & { minute: number } {
+  const scoringPlayers = args.playersByTeamId.get(args.scoringTeam._id) ?? []
+  const opponentPlayers = args.playersByTeamId.get(args.opponentTeam._id) ?? []
+  const isOwnGoal = opponentPlayers.length > 0 && (scoringPlayers.length === 0 || args.rng() < 0.06)
+  const creditedPlayers = isOwnGoal ? opponentPlayers : scoringPlayers
+  const creditedPlayer = pickSeedGoalPlayer(creditedPlayers, args.rng)
+
+  return {
+    scoringTeamId: args.scoringTeam._id,
+    creditedPlayerId: creditedPlayer._id,
+    isOwnGoal,
+    minuteLabel: '',
+    sortOrder: 0,
+    minute: drawGoalMinute(args.rng, args.groupStage),
+  }
+}
+
+function pickSeedGoalPlayer(players: Doc<'eligiblePlayers'>[], rng: () => number) {
+  if (players.length === 0) {
+    throw new Error('No hay goleadores elegibles para generar los goles del partido.')
+  }
+
+  const candidates = players.slice(0, Math.min(players.length, 8))
+  const totalWeight = candidates.reduce((total, _player, index) => {
+    return total + (candidates.length - index)
+  }, 0)
+  let roll = rng() * totalWeight
+
+  for (const [index, player] of candidates.entries()) {
+    roll -= candidates.length - index
+
+    if (roll <= 0) {
+      return player
+    }
+  }
+
+  return candidates[candidates.length - 1]
+}
+
+function drawGoalMinute(rng: () => number, groupStage: boolean) {
+  const maxMinute = groupStage ? 90 : 120
+  return 1 + Math.floor(rng() * maxMinute)
+}
+
+function formatMinuteLabel(minute: number) {
+  return `${minute}'`
+}
+
+function getGeneratedTopScorers(args: {
+  goalsByPlayerId: Map<Id<'eligiblePlayers'>, number>
+  playersById: Map<Id<'eligiblePlayers'>, Doc<'eligiblePlayers'>>
+  teamsById: Map<Id<'teams'>, Doc<'teams'>>
+  teamsByCode: Map<string, Doc<'teams'>>
+  teamsByName: Map<string, Doc<'teams'>>
+}) {
+  const topScorerRows: GeneratedTopScorer[] = Array.from(args.goalsByPlayerId.entries())
+    .map(([playerId, goals]) => {
+      const player = args.playersById.get(playerId)
+
+      if (player === undefined) {
+        return null
+      }
+
+      return {
+        player,
+        team: resolvePlayerTeam(player, args.teamsById, args.teamsByCode, args.teamsByName),
+        goals,
+      }
+    })
+    .filter(isPresent)
+    .sort(
+      (left, right) =>
+        right.goals - left.goals || left.player.name.localeCompare(right.player.name),
+    )
+  const topGoalCount = topScorerRows[0]?.goals ?? 0
+
+  if (topGoalCount <= 0) {
+    return []
+  }
+
+  return topScorerRows
+    .filter((topScorer) => topScorer.goals === topGoalCount)
+    .slice(0, MAX_TOP_SCORER_CONFIRMATIONS)
+}
+
+function compareGroupStats(
+  left: GroupStats,
+  right: GroupStats,
+  tiersById: Map<Id<'teamTiers'>, Doc<'teamTiers'>>,
+) {
+  return (
+    right.points - left.points ||
+    getGoalDifference(right) - getGoalDifference(left) ||
+    right.goalsFor - left.goalsFor ||
+    right.wins - left.wins ||
+    getTeamStrength(right.team, tiersById) - getTeamStrength(left.team, tiersById) ||
+    left.team.fifaCode.localeCompare(right.team.fifaCode)
+  )
+}
+
+function getGoalDifference(stats: GroupStats) {
+  return stats.goalsFor - stats.goalsAgainst
+}
+
+function getTeamGroupCode(team: Doc<'teams'>) {
+  return team.groupCode?.trim().toUpperCase() ?? ''
+}
+
+function getTeamStrength(team: Doc<'teams'>, tiersById: Map<Id<'teamTiers'>, Doc<'teamTiers'>>) {
+  const tier = tiersById.get(team.tierId)
+  const tierScore = tier === undefined ? 1 : Math.max(0, 5 - tier.sortOrder) * 0.5
+  const codeJitter = hashString(team.fifaCode) / 0xffffffff - 0.5
+
+  return tierScore + codeJitter * 0.2
+}
+
+function createSeededRng(seed: string) {
+  let state = hashString(seed) || 1
+
+  return () => {
+    state = (state + 0x6d2b79f5) | 0
+    let value = state
+    value = Math.imul(value ^ (value >>> 15), value | 1)
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61)
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+function hashString(value: string) {
+  let hash = 2166136261
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+
+  return hash >>> 0
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function addPoints<TKey>(pointsByKey: Map<TKey, number>, key: TKey, points: number) {
+  pointsByKey.set(key, (pointsByKey.get(key) ?? 0) + points)
+}
+
+function addSeedWarning(warnings: string[], warning: string) {
+  if (warnings.length < MAX_SEED_WARNINGS) {
+    warnings.push(warning)
+  }
+}
+
+function normalizeKey(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
 
 async function requireAuthenticatedParticipant(
   ctx: QueryCtx | MutationCtx,
