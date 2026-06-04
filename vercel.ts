@@ -1,20 +1,23 @@
-import { deploymentEnv, routes, type VercelConfig } from '@vercel/config/v1'
+import { routes, type VercelConfig } from '@vercel/config/v1'
 
 const convexSiteUrl = getConvexSiteUrl()
 
 export const config: VercelConfig = {
-  rewrites: [
-    routes.rewrite('/auth/:path*', `${convexSiteUrl}/auth/:path*`),
-    routes.rewrite('/api/:path*', `${convexSiteUrl}/api/:path*`),
-    routes.rewrite('/(.*)', '/index.html'),
-  ],
+  rewrites:
+    convexSiteUrl === null
+      ? [routes.rewrite('/(.*)', '/index.html')]
+      : [
+          routes.rewrite('/auth/:path*', `${convexSiteUrl}/auth/:path*`),
+          routes.rewrite('/api/:path*', `${convexSiteUrl}/api/:path*`),
+          routes.rewrite('/(.*)', '/index.html'),
+        ],
 }
 
 function getConvexSiteUrl() {
-  const value = process.env.CONVEX_SITE_URL_FOR_PROXY ?? deploymentEnv('CONVEX_SITE_URL_FOR_PROXY')
+  const value = process.env.CONVEX_SITE_URL_FOR_PROXY
 
-  if (value.startsWith('$')) {
-    return value
+  if (!value) {
+    return null
   }
 
   const url = new URL(value)
