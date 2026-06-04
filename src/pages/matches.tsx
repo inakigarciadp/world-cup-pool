@@ -161,9 +161,6 @@ function GoalscorerLeaderboard({ payload }: { payload: MatchesPayload }) {
     return (
       <div className="sticker-soft px-5 py-8 text-center">
         <p className="heading text-lg">Todavía no hay goleadores</p>
-        <p className="mt-1 text-sm font-semibold text-ink-soft">
-          Aquí aparecerán los jugadores elegibles en cuanto marquen al menos un gol.
-        </p>
       </div>
     )
   }
