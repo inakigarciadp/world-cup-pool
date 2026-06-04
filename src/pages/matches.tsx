@@ -16,10 +16,12 @@ import {
   Plus,
   Save,
   ShieldCheck,
+  Trophy,
   Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   replaceMatchGoals,
   saveMatchResult,
@@ -61,68 +63,143 @@ export function MatchesPage() {
         <CalendarDays className="size-10 text-sun-ink" aria-hidden="true" />
       </header>
 
-      <div className="flex items-center justify-between gap-3">
-        <div className="section-label">Calendario</div>
-        <div className="matches-filter-row">
+      <Tabs defaultValue="partidos">
+        <TabsList aria-label="Contenido de partidos">
+          <TabsTrigger value="partidos">Partidos</TabsTrigger>
+          <TabsTrigger value="goleadores">Goleadores</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="partidos" className="space-y-5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="section-label">Calendario</div>
+            <div className="matches-filter-row">
+              {payload ? (
+                <label className="match-filter-pill">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-[var(--coral)]"
+                    checked={showOnlyMine}
+                    onChange={(event) => setShowOnlyMine(event.target.checked)}
+                  />
+                  Mis partidos
+                </label>
+              ) : null}
+              {payload?.tournamentStarted ? (
+                <label className="match-filter-pill">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-[var(--coral)]"
+                    checked={includePast}
+                    onChange={(event) => setIncludePast(event.target.checked)}
+                  />
+                  Mostrar partidos anteriores
+                </label>
+              ) : null}
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="sticker-soft px-5 py-6 text-sm font-semibold text-ink-soft">
+              Cargando partidos…
+            </div>
+          ) : null}
+
+          {error ? (
+            <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
+              {getUserErrorMessage(error, 'No se han podido cargar los partidos.')}
+            </div>
+          ) : null}
+
+          {payload && visibleMatches.length === 0 ? (
+            <div className="sticker-soft px-5 py-8 text-center">
+              <p className="heading text-lg">
+                {showOnlyMine
+                  ? 'No hay partidos tuyos en esta ventana'
+                  : 'No hay partidos en esta ventana'}
+              </p>
+              <p className="mt-1 text-sm text-ink-soft">
+                {showOnlyMine
+                  ? 'Desactiva Mis partidos o muestra partidos anteriores cuando el Mundial haya empezado.'
+                  : 'Activa los partidos anteriores o importa el calendario oficial.'}
+              </p>
+            </div>
+          ) : null}
+
           {payload ? (
-            <label className="match-filter-pill">
-              <input
-                type="checkbox"
-                className="size-4 accent-[var(--coral)]"
-                checked={showOnlyMine}
-                onChange={(event) => setShowOnlyMine(event.target.checked)}
-              />
-              Mis partidos
-            </label>
+            <div className="space-y-4">
+              {visibleMatches.map((match) => (
+                <MatchCard key={match.id} match={match} payload={payload} />
+              ))}
+            </div>
           ) : null}
-          {payload?.tournamentStarted ? (
-            <label className="match-filter-pill">
-              <input
-                type="checkbox"
-                className="size-4 accent-[var(--coral)]"
-                checked={includePast}
-                onChange={(event) => setIncludePast(event.target.checked)}
-              />
-              Mostrar partidos anteriores
-            </label>
+        </TabsContent>
+
+        <TabsContent value="goleadores">
+          {isLoading ? (
+            <div className="sticker-soft px-5 py-6 text-sm font-semibold text-ink-soft">
+              Cargando goleadores…
+            </div>
           ) : null}
-        </div>
+
+          {error ? (
+            <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
+              {getUserErrorMessage(error, 'No se han podido cargar los goleadores.')}
+            </div>
+          ) : null}
+
+          {payload ? <GoalscorerLeaderboard payload={payload} /> : null}
+        </TabsContent>
+      </Tabs>
+    </section>
+  )
+}
+
+function GoalscorerLeaderboard({ payload }: { payload: MatchesPayload }) {
+  const leaders = payload.goalscorerLeaderboard
+
+  if (leaders.length === 0) {
+    return (
+      <div className="sticker-soft px-5 py-8 text-center">
+        <p className="heading text-lg">Todavía no hay goleadores</p>
+        <p className="mt-1 text-sm font-semibold text-ink-soft">
+          Aquí aparecerán los jugadores elegibles en cuanto marquen al menos un gol.
+        </p>
       </div>
+    )
+  }
 
-      {isLoading ? (
-        <div className="sticker-soft px-5 py-6 text-sm font-semibold text-ink-soft">
-          Cargando partidos…
+  return (
+    <section className="goalscorer-board">
+      <header className="goalscorer-board-head">
+        <div>
+          <p className="section-label">Goleadores</p>
+          <h2>Tabla de goleadores</h2>
+          <p>Solo jugadores elegibles con al menos un gol registrado.</p>
         </div>
-      ) : null}
+        <Trophy className="size-9 text-coral-ink" aria-hidden="true" />
+      </header>
 
-      {error ? (
-        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
-          {getUserErrorMessage(error, 'No se han podido cargar los partidos.')}
-        </div>
-      ) : null}
-
-      {payload && visibleMatches.length === 0 ? (
-        <div className="sticker-soft px-5 py-8 text-center">
-          <p className="heading text-lg">
-            {showOnlyMine
-              ? 'No hay partidos tuyos en esta ventana'
-              : 'No hay partidos en esta ventana'}
-          </p>
-          <p className="mt-1 text-sm text-ink-soft">
-            {showOnlyMine
-              ? 'Desactiva Mis partidos o muestra partidos anteriores cuando el Mundial haya empezado.'
-              : 'Activa los partidos anteriores o importa el calendario oficial.'}
-          </p>
-        </div>
-      ) : null}
-
-      {payload ? (
-        <div className="space-y-4">
-          {visibleMatches.map((match) => (
-            <MatchCard key={match.id} match={match} payload={payload} />
-          ))}
-        </div>
-      ) : null}
+      <div className="goalscorer-list">
+        {leaders.map((leader, index) => (
+          <article
+            key={leader.playerId}
+            className={`goalscorer-row ${index === 0 ? 'is-leading' : ''}`}
+          >
+            <div className="goalscorer-rank">{getGoalscorerRank(leaders, index)}</div>
+            <div className="min-w-0 flex-1">
+              <h3>{leader.playerName}</h3>
+              <p>
+                <span aria-hidden="true">{getFlagEmoji(leader.teamFifaCode)}</span>
+                {leader.teamName}
+              </p>
+            </div>
+            <div className="goalscorer-total">
+              <span>{leader.goals}</span>
+              <small>{leader.goals === 1 ? 'gol' : 'goles'}</small>
+            </div>
+          </article>
+        ))}
+      </div>
     </section>
   )
 }
@@ -612,6 +689,18 @@ function updateGoalDraft(
   setGoalDrafts((current) =>
     current.map((goal, rowIndex) => (rowIndex === index ? { ...goal, ...patch } : goal)),
   )
+}
+
+function getGoalscorerRank(leaders: MatchesPayload['goalscorerLeaderboard'], index: number) {
+  const leader = leaders[index]
+
+  if (leader === undefined) {
+    return index + 1
+  }
+
+  const previousLeaderIndex = leaders.findIndex((candidate) => candidate.goals === leader.goals)
+
+  return previousLeaderIndex + 1
 }
 
 function formatMatchDate(value: number) {
