@@ -259,6 +259,110 @@ http.route({
 })
 
 http.route({
+  path: '/api/goalscorers',
+  method: 'GET',
+  handler: httpAction(async (ctx, request) => {
+    const payload = await getAccessPayload(request)
+
+    if (payload === null) {
+      return unauthorized(request, clearAccessCookie())
+    }
+
+    const url = new URL(request.url)
+
+    try {
+      const goalscorers = await ctx.runQuery(internal.matches.getGoalscorersForHttp, {
+        poolId: payload.poolId as Id<'pools'>,
+        participantId: payload.participantId as Id<'participants'>,
+        slug: url.searchParams.get('slug') ?? undefined,
+      })
+
+      return jsonResponse(goalscorers, request)
+    } catch (caught) {
+      return jsonResponse(
+        {
+          error:
+            caught instanceof Error ? caught.message : 'No se han podido cargar los goleadores.',
+        },
+        request,
+        400,
+      )
+    }
+  }),
+})
+
+http.route({
+  path: '/api/matches/admin',
+  method: 'GET',
+  handler: httpAction(async (ctx, request) => {
+    const payload = await getAccessPayload(request)
+
+    if (payload === null) {
+      return unauthorized(request, clearAccessCookie())
+    }
+
+    const url = new URL(request.url)
+
+    try {
+      const admin = await ctx.runQuery(internal.matches.getMatchAdminForHttp, {
+        poolId: payload.poolId as Id<'pools'>,
+        participantId: payload.participantId as Id<'participants'>,
+        matchId: String(url.searchParams.get('matchId') ?? '') as Id<'matches'>,
+        slug: url.searchParams.get('slug') ?? undefined,
+      })
+
+      return jsonResponse(admin, request)
+    } catch (caught) {
+      return jsonResponse(
+        {
+          error:
+            caught instanceof Error
+              ? caught.message
+              : 'No se han podido cargar las opciones de edición.',
+        },
+        request,
+        400,
+      )
+    }
+  }),
+})
+
+http.route({
+  path: '/api/goalscorers/admin',
+  method: 'GET',
+  handler: httpAction(async (ctx, request) => {
+    const payload = await getAccessPayload(request)
+
+    if (payload === null) {
+      return unauthorized(request, clearAccessCookie())
+    }
+
+    const url = new URL(request.url)
+
+    try {
+      const admin = await ctx.runQuery(internal.matches.getGoalscorersAdminForHttp, {
+        poolId: payload.poolId as Id<'pools'>,
+        participantId: payload.participantId as Id<'participants'>,
+        slug: url.searchParams.get('slug') ?? undefined,
+      })
+
+      return jsonResponse(admin, request)
+    } catch (caught) {
+      return jsonResponse(
+        {
+          error:
+            caught instanceof Error
+              ? caught.message
+              : 'No se han podido cargar las opciones de edición.',
+        },
+        request,
+        400,
+      )
+    }
+  }),
+})
+
+http.route({
   path: '/api/matches/teams',
   method: 'POST',
   handler: httpAction(async (ctx, request) => {
@@ -445,6 +549,21 @@ http.route({
 })
 http.route({
   path: '/api/matches',
+  method: 'OPTIONS',
+  handler: httpAction(async (_ctx, request) => optionsResponse(request)),
+})
+http.route({
+  path: '/api/goalscorers',
+  method: 'OPTIONS',
+  handler: httpAction(async (_ctx, request) => optionsResponse(request)),
+})
+http.route({
+  path: '/api/matches/admin',
+  method: 'OPTIONS',
+  handler: httpAction(async (_ctx, request) => optionsResponse(request)),
+})
+http.route({
+  path: '/api/goalscorers/admin',
   method: 'OPTIONS',
   handler: httpAction(async (_ctx, request) => optionsResponse(request)),
 })

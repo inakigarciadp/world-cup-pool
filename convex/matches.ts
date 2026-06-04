@@ -142,10 +142,6 @@ export const getMatchesForHttp = internalQuery({
       .query('matchGoals')
       .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
       .take(2000)
-    const topScorerConfirmations = await ctx.db
-      .query('topScorerConfirmations')
-      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(MAX_TOP_SCORER_CONFIRMATIONS)
 
     const tiersById = new Map(tiers.map((tier) => [tier._id, tier]))
     const teamsById = new Map(teams.map((team) => [team._id, team]))
@@ -157,58 +153,10 @@ export const getMatchesForHttp = internalQuery({
     const goalscorerPicksByEntryId = groupByEntry(entryGoalscorerPicks)
     const resultsByMatchId = new Map(results.map((result) => [result.matchId, result]))
     const goalsByMatchId = new Map<Id<'matches'>, Doc<'matchGoals'>[]>()
-    const confirmedTopScorerIds = new Set(
-      topScorerConfirmations.map((confirmation) => confirmation.eligiblePlayerId),
-    )
 
     for (const goal of goals) {
       goalsByMatchId.set(goal.matchId, [...(goalsByMatchId.get(goal.matchId) ?? []), goal])
     }
-
-    const goalsByPlayerId = new Map<Id<'eligiblePlayers'>, number>()
-
-    for (const goal of goals) {
-      if (goal.isOwnGoal) {
-        continue
-      }
-
-      const player = playersById.get(goal.creditedPlayerId) ?? null
-
-      if (player === null || !player.isActive) {
-        continue
-      }
-
-      goalsByPlayerId.set(
-        goal.creditedPlayerId,
-        (goalsByPlayerId.get(goal.creditedPlayerId) ?? 0) + 1,
-      )
-    }
-
-    const goalscorerLeaderboard = Array.from(goalsByPlayerId.entries())
-      .map(([playerId, goals]) => {
-        const player = playersById.get(playerId)
-
-        if (player === undefined) {
-          return null
-        }
-
-        const team = resolvePlayerTeam(player, teamsById, teamsByCode, teamsByName)
-
-        return {
-          playerId,
-          playerName: player.name,
-          teamId: team?._id ?? null,
-          teamName: team?.name ?? player.teamName,
-          teamFifaCode: team?.fifaCode ?? player.teamFifaCode ?? '',
-          goals,
-          isConfirmedTopScorer: confirmedTopScorerIds.has(playerId),
-        }
-      })
-      .filter(isPresent)
-      .sort(
-        (left, right) =>
-          right.goals - left.goals || left.playerName.localeCompare(right.playerName),
-      )
 
     return {
       session: {
@@ -217,49 +165,6 @@ export const getMatchesForHttp = internalQuery({
         isAdmin: participant.isAdmin,
       },
       tournamentStarted: firstMatch !== undefined && firstMatch.kickoffAt <= args.now,
-      teams: teams
-        .sort((left, right) => left.name.localeCompare(right.name))
-        .map((team) => ({
-          id: team._id,
-          name: team.name,
-          fifaCode: team.fifaCode,
-          groupCode: team.groupCode ?? '?',
-        })),
-      eligiblePlayers: eligiblePlayers
-        .filter((player) => player.isActive)
-        .sort((left, right) => left.name.localeCompare(right.name))
-        .map((player) => {
-          const team = resolvePlayerTeam(player, teamsById, teamsByCode, teamsByName)
-          return {
-            id: player._id,
-            name: player.name,
-            teamId: team?._id ?? null,
-            teamName: team?.name ?? player.teamName,
-            teamFifaCode: team?.fifaCode ?? player.teamFifaCode ?? '',
-          }
-        }),
-      goalscorerLeaderboard,
-      topScorerConfirmations: topScorerConfirmations
-        .map((confirmation) => {
-          const player = playersById.get(confirmation.eligiblePlayerId)
-
-          if (player === undefined) {
-            return null
-          }
-
-          const team = resolvePlayerTeam(player, teamsById, teamsByCode, teamsByName)
-
-          return {
-            eligiblePlayerId: confirmation.eligiblePlayerId,
-            playerName: player.name,
-            teamId: team?._id ?? null,
-            teamName: team?.name ?? player.teamName,
-            teamFifaCode: team?.fifaCode ?? player.teamFifaCode ?? '',
-            confirmedAt: confirmation.confirmedAt,
-          }
-        })
-        .filter(isPresent)
-        .sort((left, right) => left.playerName.localeCompare(right.playerName)),
       matches: matches.map((match) => {
         const homeTeam =
           match.homeTeamId === null ? null : (teamsById.get(match.homeTeamId) ?? null)
@@ -269,8 +174,6 @@ export const getMatchesForHttp = internalQuery({
         const matchGoals = (goalsByMatchId.get(match._id) ?? []).sort(
           (left, right) => left.sortOrder - right.sortOrder,
         )
-        const expectedGoals = result === null ? 0 : result.homeGoals + result.awayGoals
-        const recordedGoals = matchGoals.length
         const stakes = buildMatchStakes({
           matchTeamIds: [match.homeTeamId, match.awayTeamId].filter(isTeamId),
           participants,
@@ -330,20 +233,142 @@ export const getMatchesForHttp = internalQuery({
               sortOrder: goal.sortOrder,
             }
           }),
-          completeness:
-            participant.isAdmin && result !== null && expectedGoals !== recordedGoals
-              ? {
-                  expectedGoals,
-                  recordedGoals,
-                  missingGoals: Math.max(expectedGoals - recordedGoals, 0),
-                  extraGoals: Math.max(recordedGoals - expectedGoals, 0),
-                }
-              : null,
           hasCurrentParticipantStake: stakes.some(
             (stake) => stake.participantId === participant._id,
           ),
           stakes,
         }
+      }),
+    }
+  },
+})
+
+export const getGoalscorersForHttp = internalQuery({
+  args: {
+    poolId: v.id('pools'),
+    participantId: v.id('participants'),
+    slug: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { pool } = await requireAuthenticatedParticipant(ctx, args)
+    const teams = await ctx.db
+      .query('teams')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(200)
+    const eligiblePlayers = await ctx.db
+      .query('eligiblePlayers')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(2000)
+    const goals = await ctx.db
+      .query('matchGoals')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(2000)
+    const topScorerConfirmations = await ctx.db
+      .query('topScorerConfirmations')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(MAX_TOP_SCORER_CONFIRMATIONS)
+    const teamsById = new Map(teams.map((team) => [team._id, team]))
+    const teamsByCode = new Map(teams.map((team) => [team.fifaCode, team]))
+    const teamsByName = new Map(teams.map((team) => [team.name, team]))
+    const playersById = new Map(eligiblePlayers.map((player) => [player._id, player]))
+    const confirmedTopScorerIds = new Set(
+      topScorerConfirmations.map((confirmation) => confirmation.eligiblePlayerId),
+    )
+
+    return {
+      goalscorerLeaderboard: buildGoalscorerLeaderboard({
+        goals,
+        playersById,
+        teamsById,
+        teamsByCode,
+        teamsByName,
+        confirmedTopScorerIds,
+      }),
+    }
+  },
+})
+
+export const getMatchAdminForHttp = internalQuery({
+  args: {
+    poolId: v.id('pools'),
+    participantId: v.id('participants'),
+    matchId: v.id('matches'),
+    slug: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { pool } = await requireAdminParticipant(ctx, args)
+    const match = await requirePoolMatch(ctx, pool._id, args.matchId)
+    const teams = await ctx.db
+      .query('teams')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(200)
+    const eligiblePlayers = await ctx.db
+      .query('eligiblePlayers')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(2000)
+    const result = await ctx.db
+      .query('matchResults')
+      .withIndex('by_matchId', (q) => q.eq('matchId', match._id))
+      .unique()
+    const matchGoals = await ctx.db
+      .query('matchGoals')
+      .withIndex('by_matchId_and_sortOrder', (q) => q.eq('matchId', match._id))
+      .take(MAX_GOALS_PER_MATCH)
+    const teamsById = new Map(teams.map((team) => [team._id, team]))
+    const teamsByCode = new Map(teams.map((team) => [team.fifaCode, team]))
+    const teamsByName = new Map(teams.map((team) => [team.name, team]))
+    const expectedGoals = result === null ? 0 : result.homeGoals + result.awayGoals
+    const recordedGoals = matchGoals.length
+
+    return {
+      teams: serializeTeams(teams),
+      eligiblePlayers: serializeActivePlayers(eligiblePlayers, teamsById, teamsByCode, teamsByName),
+      completeness:
+        result !== null && expectedGoals !== recordedGoals
+          ? {
+              expectedGoals,
+              recordedGoals,
+              missingGoals: Math.max(expectedGoals - recordedGoals, 0),
+              extraGoals: Math.max(recordedGoals - expectedGoals, 0),
+            }
+          : null,
+    }
+  },
+})
+
+export const getGoalscorersAdminForHttp = internalQuery({
+  args: {
+    poolId: v.id('pools'),
+    participantId: v.id('participants'),
+    slug: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { pool } = await requireAdminParticipant(ctx, args)
+    const teams = await ctx.db
+      .query('teams')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(200)
+    const eligiblePlayers = await ctx.db
+      .query('eligiblePlayers')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(2000)
+    const topScorerConfirmations = await ctx.db
+      .query('topScorerConfirmations')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(MAX_TOP_SCORER_CONFIRMATIONS)
+    const teamsById = new Map(teams.map((team) => [team._id, team]))
+    const teamsByCode = new Map(teams.map((team) => [team.fifaCode, team]))
+    const teamsByName = new Map(teams.map((team) => [team.name, team]))
+    const playersById = new Map(eligiblePlayers.map((player) => [player._id, player]))
+
+    return {
+      eligiblePlayers: serializeActivePlayers(eligiblePlayers, teamsById, teamsByCode, teamsByName),
+      topScorerConfirmations: serializeTopScorerConfirmations({
+        topScorerConfirmations,
+        playersById,
+        teamsById,
+        teamsByCode,
+        teamsByName,
       }),
     }
   },
@@ -1844,10 +1869,11 @@ async function requireAuthenticatedParticipant(
 }
 
 async function requireAdminParticipant(
-  ctx: MutationCtx,
+  ctx: QueryCtx | MutationCtx,
   args: {
     poolId: Id<'pools'>
     participantId: Id<'participants'>
+    slug?: string
   },
 ) {
   const context = await requireAuthenticatedParticipant(ctx, args)
@@ -1902,6 +1928,135 @@ function serializeTeam(team: Doc<'teams'> | null) {
     fifaCode: team.fifaCode,
     groupCode: team.groupCode ?? '?',
   }
+}
+
+function serializeTeams(teams: Doc<'teams'>[]) {
+  return teams
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .map((team) => ({
+      id: team._id,
+      name: team.name,
+      fifaCode: team.fifaCode,
+      groupCode: team.groupCode ?? '?',
+    }))
+}
+
+function serializeActivePlayers(
+  eligiblePlayers: Doc<'eligiblePlayers'>[],
+  teamsById: Map<Id<'teams'>, Doc<'teams'>>,
+  teamsByCode: Map<string, Doc<'teams'>>,
+  teamsByName: Map<string, Doc<'teams'>>,
+) {
+  return eligiblePlayers
+    .filter((player) => player.isActive)
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .map((player) => {
+      const team = resolvePlayerTeam(player, teamsById, teamsByCode, teamsByName)
+
+      return {
+        id: player._id,
+        name: player.name,
+        teamId: team?._id ?? null,
+        teamName: team?.name ?? player.teamName,
+        teamFifaCode: team?.fifaCode ?? player.teamFifaCode ?? '',
+      }
+    })
+}
+
+function buildGoalscorerLeaderboard({
+  goals,
+  playersById,
+  teamsById,
+  teamsByCode,
+  teamsByName,
+  confirmedTopScorerIds,
+}: {
+  goals: Doc<'matchGoals'>[]
+  playersById: Map<Id<'eligiblePlayers'>, Doc<'eligiblePlayers'>>
+  teamsById: Map<Id<'teams'>, Doc<'teams'>>
+  teamsByCode: Map<string, Doc<'teams'>>
+  teamsByName: Map<string, Doc<'teams'>>
+  confirmedTopScorerIds: Set<Id<'eligiblePlayers'>>
+}) {
+  const goalsByPlayerId = new Map<Id<'eligiblePlayers'>, number>()
+
+  for (const goal of goals) {
+    if (goal.isOwnGoal) {
+      continue
+    }
+
+    const player = playersById.get(goal.creditedPlayerId) ?? null
+
+    if (player === null || !player.isActive) {
+      continue
+    }
+
+    goalsByPlayerId.set(
+      goal.creditedPlayerId,
+      (goalsByPlayerId.get(goal.creditedPlayerId) ?? 0) + 1,
+    )
+  }
+
+  return Array.from(goalsByPlayerId.entries())
+    .map(([playerId, goals]) => {
+      const player = playersById.get(playerId)
+
+      if (player === undefined) {
+        return null
+      }
+
+      const team = resolvePlayerTeam(player, teamsById, teamsByCode, teamsByName)
+
+      return {
+        playerId,
+        playerName: player.name,
+        teamId: team?._id ?? null,
+        teamName: team?.name ?? player.teamName,
+        teamFifaCode: team?.fifaCode ?? player.teamFifaCode ?? '',
+        goals,
+        isConfirmedTopScorer: confirmedTopScorerIds.has(playerId),
+      }
+    })
+    .filter(isPresent)
+    .sort(
+      (left, right) => right.goals - left.goals || left.playerName.localeCompare(right.playerName),
+    )
+}
+
+function serializeTopScorerConfirmations({
+  topScorerConfirmations,
+  playersById,
+  teamsById,
+  teamsByCode,
+  teamsByName,
+}: {
+  topScorerConfirmations: Doc<'topScorerConfirmations'>[]
+  playersById: Map<Id<'eligiblePlayers'>, Doc<'eligiblePlayers'>>
+  teamsById: Map<Id<'teams'>, Doc<'teams'>>
+  teamsByCode: Map<string, Doc<'teams'>>
+  teamsByName: Map<string, Doc<'teams'>>
+}) {
+  return topScorerConfirmations
+    .map((confirmation) => {
+      const player = playersById.get(confirmation.eligiblePlayerId)
+
+      if (player === undefined) {
+        return null
+      }
+
+      const team = resolvePlayerTeam(player, teamsById, teamsByCode, teamsByName)
+
+      return {
+        eligiblePlayerId: confirmation.eligiblePlayerId,
+        playerName: player.name,
+        teamId: team?._id ?? null,
+        teamName: team?.name ?? player.teamName,
+        teamFifaCode: team?.fifaCode ?? player.teamFifaCode ?? '',
+        confirmedAt: confirmation.confirmedAt,
+      }
+    })
+    .filter(isPresent)
+    .sort((left, right) => left.playerName.localeCompare(right.playerName))
 }
 
 function buildMatchStakes({
