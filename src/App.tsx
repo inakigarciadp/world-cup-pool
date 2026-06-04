@@ -2,14 +2,13 @@ import { Outlet } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
 export function App() {
-  if (!import.meta.env.VITE_CONVEX_URL || !import.meta.env.VITE_CONVEX_SITE_URL) {
+  if (!import.meta.env.VITE_CONVEX_URL) {
     return (
       <main className="app-shell flex min-h-svh items-center justify-center px-5 text-foreground">
         <div className="page-frame flex flex-col items-center gap-5">
           <SoccerBall />
           <p className="login-banner text-center">
-            Configura <code className="font-bold">VITE_CONVEX_URL</code> y{' '}
-            <code className="font-bold">VITE_CONVEX_SITE_URL</code> para activar el acceso de
+            Configura <code className="font-bold">VITE_CONVEX_URL</code> para activar el acceso de
             participantes.
           </p>
           <code className="rounded-full border bg-surface px-3 py-1.5 text-xs font-bold tracking-wide">

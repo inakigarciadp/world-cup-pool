@@ -481,26 +481,43 @@ function corsHeaders(request: Request) {
     Vary: 'Origin',
   })
 
-  if (origin !== null && getAllowedOrigins().has(origin)) {
+  if (origin !== null && isAllowedOrigin(origin)) {
     headers.set('Access-Control-Allow-Origin', origin)
   }
 
   return headers
 }
 
+function isAllowedOrigin(origin: string) {
+  const allowedOrigins = getAllowedOrigins()
+
+  return (
+    allowedOrigins.exact.has(origin) ||
+    allowedOrigins.suffixes.some((suffix) => origin === suffix || origin.endsWith(`.${suffix}`))
+  )
+}
+
 function getAllowedOrigins() {
   const configuredOrigins = process.env.SITE_ORIGINS ?? process.env.SITE_ORIGIN
+  const configuredOriginSuffixes = process.env.SITE_ORIGIN_SUFFIXES
 
-  if (!configuredOrigins) {
-    return new Set(['http://localhost:5173'])
+  const exactOrigins = configuredOrigins
+    ? configuredOrigins
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean)
+    : ['http://localhost:5173']
+  const suffixOrigins = configuredOriginSuffixes
+    ? configuredOriginSuffixes
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean)
+    : []
+
+  return {
+    exact: new Set(exactOrigins),
+    suffixes: suffixOrigins,
   }
-
-  return new Set(
-    configuredOrigins
-      .split(',')
-      .map((origin) => origin.trim())
-      .filter(Boolean),
-  )
 }
 
 function authCookies(accessToken: string, refreshToken: string) {

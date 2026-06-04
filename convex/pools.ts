@@ -4,7 +4,7 @@ import { internalMutation, internalQuery, mutation } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx } from './_generated/server'
 import { requireAdminScriptSecret } from './adminScriptAuth'
-import { verifyPin } from './authCrypto'
+import { hashPin, verifyPin } from './authCrypto'
 
 const DEMO_SLUG = 'world-cup-2026'
 const DEFAULT_ENTRY_LOCK_AT = Date.UTC(2026, 5, 11, 19, 0, 0)
@@ -740,6 +740,52 @@ export const upsertParticipantsFromCsv = mutation({
   },
 })
 
+export const seedPreview = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const pool = await getOrCreatePool(ctx, DEMO_SLUG)
+    const teamsByName = await ensurePreviewEligiblePlayers(ctx, pool._id)
+    const users = [
+      { username: 'admin', displayName: 'Admin Preview', pin: 'preview-admin', isAdmin: true },
+      { username: 'jugador-uno', displayName: 'Jugador Uno', pin: 'preview-uno', isAdmin: false },
+      { username: 'jugador-dos', displayName: 'Jugador Dos', pin: 'preview-dos', isAdmin: false },
+      { username: 'jugador-tres', displayName: 'Jugador Tres', pin: 'preview-tres', isAdmin: false },
+    ]
+    let insertedParticipants = 0
+    let updatedParticipants = 0
+
+    for (const user of users) {
+      const existing = await ctx.db
+        .query('participants')
+        .withIndex('by_poolId_and_loginName', (q) =>
+          q.eq('poolId', pool._id).eq('loginName', user.username),
+        )
+        .unique()
+      const payload = {
+        displayName: user.displayName,
+        loginName: user.username,
+        pinHash: await hashPin(user.pin),
+        isAdmin: user.isAdmin,
+      }
+
+      if (existing === null) {
+        await ctx.db.insert('participants', { poolId: pool._id, ...payload })
+        insertedParticipants += 1
+      } else {
+        await ctx.db.patch(existing._id, payload)
+        updatedParticipants += 1
+      }
+    }
+
+    return {
+      poolId: pool._id,
+      teams: teamsByName.size,
+      insertedParticipants,
+      updatedParticipants,
+    }
+  },
+})
+
 async function insertTeam(
   ctx: MutationCtx,
   poolId: Id<'pools'>,
@@ -825,6 +871,50 @@ async function ensureWorldCupSeedData(ctx: MutationCtx, poolId: Id<'pools'>) {
     tiersByOrder,
     teamsByName,
   }
+}
+
+async function ensurePreviewEligiblePlayers(ctx: MutationCtx, poolId: Id<'pools'>) {
+  const { teamsByName } = await ensureWorldCupSeedData(ctx, poolId)
+  const existingPlayers = await ctx.db
+    .query('eligiblePlayers')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .take(2000)
+  const existingByTeamAndName = new Map(
+    existingPlayers.map((player) => [
+      `${player.teamFifaCode ?? normalizeKey(player.teamName)}:${normalizeKey(player.name)}`,
+      player,
+    ]),
+  )
+
+  for (const teamSeedItem of teamSeed) {
+    const teamId = teamsByName.get(teamSeedItem.name)
+
+    if (teamId === undefined) {
+      throw new Error('No se han podido preparar los jugadores de preview.')
+    }
+
+    for (let index = 1; index <= 3; index += 1) {
+      const name = `${teamSeedItem.name} Preview ${index}`
+      const key = `${teamSeedItem.fifaCode}:${normalizeKey(name)}`
+      const existing = existingByTeamAndName.get(key)
+      const payload = {
+        poolId,
+        name,
+        teamName: teamSeedItem.name,
+        teamId,
+        teamFifaCode: teamSeedItem.fifaCode,
+        isActive: true,
+      }
+
+      if (existing === undefined) {
+        await ctx.db.insert('eligiblePlayers', payload)
+      } else {
+        await ctx.db.patch(existing._id, payload)
+      }
+    }
+  }
+
+  return { teamsByName }
 }
 
 async function getOrCreatePool(ctx: MutationCtx, slug: string) {

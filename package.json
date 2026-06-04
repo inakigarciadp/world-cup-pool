@@ -7,6 +7,7 @@
     "dev": "vite",
     "dev:convex": "convex dev",
     "build": "tsc -b && vite build",
+    "vercel-build": "convex deploy --cmd-url-env-var-name VITE_CONVEX_URL --cmd 'node scripts/vercel-build.mjs' --preview-run 'pools:seedPreview'",
     "lint": "oxlint .",
     "lint:fix": "oxlint . --fix",
     "fmt": "oxfmt .",

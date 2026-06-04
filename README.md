@@ -67,11 +67,12 @@ The first production deploy uses Vercel for the Vite frontend and the Convex pro
    ```text
    Framework Preset: Vite
    Root Directory: .
-   Build Command: pnpm exec convex deploy --cmd 'pnpm build'
+   Build Command: pnpm vercel-build
    Output Directory: dist
    ```
 
-   Do not manually set `VITE_CONVEX_URL` or `VITE_CONVEX_SITE_URL` in Vercel. The Convex deploy command injects both values into the Vite build.
+   Do not manually set `VITE_CONVEX_URL` in Vercel. The Convex deploy command injects it into
+   the Vite build. Preview builds also derive `VITE_CONVEX_SITE_URL` from that generated URL.
 
    Set the production Convex HTTP action URL as a Vercel environment variable:
 
@@ -83,7 +84,7 @@ The first production deploy uses Vercel for the Vite frontend and the Convex pro
 
    This same-origin proxy is required for reliable login on iPhone browsers. Safari and Chrome on iPhone both use WebKit and can reject the cross-site cookie flow when the frontend calls `*.convex.site` directly.
 
-5. Add the production Convex deploy key to Vercel.
+5. Add Convex deploy keys to Vercel.
 
    In Vercel project settings, add this environment variable for the production environment:
 
@@ -91,9 +92,19 @@ The first production deploy uses Vercel for the Vite frontend and the Convex pro
    CONVEX_DEPLOY_KEY=<production deploy key from Convex>
    ```
 
+   Add the same variable for the preview environment, but use a Convex preview deploy key:
+
+   ```text
+   CONVEX_DEPLOY_KEY=<preview deploy key from Convex>
+   ```
+
+   With a preview deploy key, `pnpm vercel-build` creates a branch-scoped Convex preview
+   deployment, deploys the Convex functions, builds the frontend against that preview deployment,
+   and runs `pools:seedPreview` only when a new preview deployment is created.
+
 6. Deploy from Vercel.
 
-   Vercel runs the build command above, which deploys Convex functions to production and builds the static frontend into `dist`.
+   Vercel runs the build command above, which deploys Convex functions and builds the static frontend into `dist`.
 
 7. Copy the production Vercel URL, for example:
 
@@ -144,6 +155,39 @@ The first production deploy uses Vercel for the Vite frontend and the Convex pro
     Open the Vercel URL, log in with a participant from `data/users.csv`, and check the Convex production dashboard for expected rows in `pools`, `participants`, `teams`, `teamTiers`, `eligiblePlayers`, and `matches`.
 
 The final rewrite in `vercel.ts` is the SPA fallback. Keep it after the `/auth/*` and `/api/*` rewrites so nested frontend routes such as `/entries` work without swallowing backend requests.
+
+## Vercel Preview Deployments
+
+Convex preview deployments are fresh backends and do not share production or development data.
+The preview setup uses the same Vercel build command as production:
+
+```text
+Build Command: pnpm vercel-build
+```
+
+In Vercel, make sure `CONVEX_DEPLOY_KEY` is set for Preview only with the Convex preview deploy
+key. Keep the production deploy key scoped to Production only.
+
+Set these Convex default environment variables for preview deployments in the Convex dashboard:
+
+```text
+AUTH_JWT_SECRET=<at least 32 random characters>
+SITE_ORIGIN_SUFFIXES=vercel.app
+```
+
+`SITE_ORIGIN_SUFFIXES=vercel.app` lets branch preview URLs call Convex HTTP actions with
+credentialed CORS. Production should still use exact `SITE_ORIGINS` values and the
+`CONVEX_SITE_URL_FOR_PROXY` Vercel variable for same-origin API rewrites.
+
+When a new preview backend is created, `pools:seedPreview` inserts the base pool, teams, sample
+eligible players, and demo users:
+
+```text
+admin / preview-admin
+jugador-uno / preview-uno
+jugador-dos / preview-dos
+jugador-tres / preview-tres
+```
 
 ## Scripts
 

@@ -1,8 +1,6 @@
 import { formatUserErrorMessage } from '@/lib/user-error'
 
-const API_URL = import.meta.env.PROD
-  ? ''
-  : (import.meta.env.VITE_CONVEX_SITE_URL ?? import.meta.env.VITE_CONVEX_URL)
+const API_URL = getConvexSiteUrl()
 let refreshPromise: Promise<boolean> | null = null
 
 export type Overview = {
@@ -316,4 +314,18 @@ async function parseJsonResponse(response: Response) {
   }
 
   return body
+}
+
+function getConvexSiteUrl() {
+  const configuredSiteUrl = import.meta.env.VITE_CONVEX_SITE_URL
+
+  if (configuredSiteUrl) {
+    return configuredSiteUrl
+  }
+
+  if (import.meta.env.PROD) {
+    return ''
+  }
+
+  return import.meta.env.VITE_CONVEX_URL?.replace('.convex.cloud', '.convex.site') ?? ''
 }
