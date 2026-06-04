@@ -1,7 +1,17 @@
 import { formatUserErrorMessage } from '@/lib/user-error'
 
 const API_URL = getConvexSiteUrl()
+const AUTH_STORAGE_KEY = 'wcp_auth_tokens'
 let refreshPromise: Promise<boolean> | null = null
+
+type AuthTokens = {
+  accessToken: string
+  refreshToken: string
+}
+
+type AuthResponse = {
+  auth?: Partial<AuthTokens>
+}
 
 export type Overview = {
   session: {
@@ -172,14 +182,24 @@ export type MatchSide = {
 }
 
 export async function login(loginName: string, pin: string) {
-  return await request('/auth/login', {
+  const response = (await request('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ loginName, pin }),
-  })
+  })) as AuthResponse
+
+  storeAuthTokens(response.auth)
+  return response
 }
 
 export async function logout() {
-  await request('/auth/logout', { method: 'POST' })
+  try {
+    await request('/auth/logout', {
+      method: 'POST',
+      body: JSON.stringify({ refreshToken: getStoredAuthTokens()?.refreshToken ?? null }),
+    })
+  } finally {
+    clearAuthTokens()
+  }
 }
 
 export async function getOverview() {
@@ -275,13 +295,19 @@ async function request(path: string, init: RequestInit) {
 }
 
 async function fetchApi(path: string, init: RequestInit = {}) {
+  const authTokens = getStoredAuthTokens()
+  const headers = new Headers(init.headers)
+
+  headers.set('Content-Type', headers.get('Content-Type') ?? 'application/json')
+
+  if (authTokens && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${authTokens.accessToken}`)
+  }
+
   return await fetch(`${API_URL}${path}`, {
     ...init,
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...init.headers,
-    },
+    headers,
   })
 }
 
@@ -300,8 +326,20 @@ async function fetchWithRefreshRetry(path: string, init: RequestInit = {}) {
 }
 
 async function refreshSession() {
-  refreshPromise ??= fetchApi('/auth/refresh', { method: 'POST' })
-    .then((response) => response.ok)
+  refreshPromise ??= fetchApi('/auth/refresh', {
+    method: 'POST',
+    body: JSON.stringify({ refreshToken: getStoredAuthTokens()?.refreshToken ?? null }),
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        clearAuthTokens()
+        return false
+      }
+
+      const body = (await response.json()) as AuthResponse
+      storeAuthTokens(body.auth)
+      return true
+    })
     .catch(() => false)
     .finally(() => {
       refreshPromise = null
@@ -314,6 +352,10 @@ async function parseJsonResponse(response: Response) {
   const body = await response.json()
 
   if (!response.ok) {
+    if (response.status === 401) {
+      clearAuthTokens()
+    }
+
     throw new Error(
       typeof body.error === 'string'
         ? formatUserErrorMessage(body.error, 'La solicitud ha fallado.')
@@ -336,4 +378,63 @@ function getConvexSiteUrl() {
   }
 
   return import.meta.env.VITE_CONVEX_URL?.replace('.convex.cloud', '.convex.site') ?? ''
+}
+
+function storeAuthTokens(auth: AuthResponse['auth']) {
+  if (!auth?.accessToken || !auth.refreshToken) {
+    return
+  }
+
+  try {
+    getAuthStorage()?.setItem(
+      AUTH_STORAGE_KEY,
+      JSON.stringify({
+        accessToken: auth.accessToken,
+        refreshToken: auth.refreshToken,
+      } satisfies AuthTokens),
+    )
+  } catch {
+    // Safari private browsing and locked-down browsers can reject localStorage writes.
+  }
+}
+
+function getStoredAuthTokens() {
+  let storedAuthTokens: string | null | undefined
+
+  try {
+    storedAuthTokens = getAuthStorage()?.getItem(AUTH_STORAGE_KEY)
+  } catch {
+    storedAuthTokens = null
+  }
+
+  if (!storedAuthTokens) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(storedAuthTokens) as Partial<AuthTokens>
+
+    return typeof parsed.accessToken === 'string' && typeof parsed.refreshToken === 'string'
+      ? { accessToken: parsed.accessToken, refreshToken: parsed.refreshToken }
+      : null
+  } catch {
+    clearAuthTokens()
+    return null
+  }
+}
+
+function clearAuthTokens() {
+  try {
+    getAuthStorage()?.removeItem(AUTH_STORAGE_KEY)
+  } catch {
+    // Ignore storage cleanup failures; the server-side session still expires or is revoked.
+  }
+}
+
+function getAuthStorage() {
+  try {
+    return globalThis.localStorage
+  } catch {
+    return null
+  }
 }

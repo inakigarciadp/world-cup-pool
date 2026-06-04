@@ -82,6 +82,7 @@ http.route({
       {
         participantName: session.participantName,
         isAdmin: session.isAdmin,
+        auth: authBody(accessToken, sessionRefreshToken),
       },
       request,
       200,
@@ -95,7 +96,7 @@ http.route({
   method: 'POST',
   handler: httpAction(async (ctx, request) => {
     const authSecret = getAuthSecret()
-    const refreshToken = getCookie(request, REFRESH_COOKIE)
+    const refreshToken = await getRefreshToken(request)
 
     if (refreshToken === null) {
       return unauthorized(request, clearAccessCookie())
@@ -139,7 +140,12 @@ http.route({
       authSecret,
     )
 
-    return jsonResponse({ ok: true }, request, 200, authCookies(accessToken, nextRefreshToken))
+    return jsonResponse(
+      { ok: true, auth: authBody(accessToken, nextRefreshToken) },
+      request,
+      200,
+      authCookies(accessToken, nextRefreshToken),
+    )
   }),
 })
 
@@ -148,7 +154,7 @@ http.route({
   method: 'POST',
   handler: httpAction(async (ctx, request) => {
     const authSecret = getAuthSecret()
-    const refreshToken = getCookie(request, REFRESH_COOKIE)
+    const refreshToken = await getRefreshToken(request)
     const payload =
       refreshToken === null ? null : await verifyAuthToken(refreshToken, 'refresh', authSecret)
 
@@ -166,10 +172,7 @@ http.route({
   path: '/api/overview',
   method: 'GET',
   handler: httpAction(async (ctx, request) => {
-    const authSecret = getAuthSecret()
-    const accessToken = getCookie(request, ACCESS_COOKIE)
-    const payload =
-      accessToken === null ? null : await verifyAuthToken(accessToken, 'access', authSecret)
+    const payload = await getAccessPayload(request)
 
     if (payload === null) {
       return unauthorized(request, clearAccessCookie())
@@ -194,10 +197,7 @@ http.route({
   path: '/api/entry',
   method: 'POST',
   handler: httpAction(async (ctx, request) => {
-    const authSecret = getAuthSecret()
-    const accessToken = getCookie(request, ACCESS_COOKIE)
-    const payload =
-      accessToken === null ? null : await verifyAuthToken(accessToken, 'access', authSecret)
+    const payload = await getAccessPayload(request)
 
     if (payload === null) {
       return unauthorized(request, clearAccessCookie())
@@ -452,9 +452,31 @@ function unauthorized(request: Request, cookies: string[] = []) {
 
 async function getAccessPayload(request: Request) {
   const authSecret = getAuthSecret()
-  const accessToken = getCookie(request, ACCESS_COOKIE)
+  const accessToken = getBearerToken(request) ?? getCookie(request, ACCESS_COOKIE)
 
   return accessToken === null ? null : await verifyAuthToken(accessToken, 'access', authSecret)
+}
+
+async function getRefreshToken(request: Request) {
+  return getCookie(request, REFRESH_COOKIE) ?? (await getBodyToken(request, 'refreshToken'))
+}
+
+async function getBodyToken(request: Request, field: string) {
+  try {
+    const body = (await request.json()) as Record<string, unknown>
+    const token = body[field]
+
+    return typeof token === 'string' && token.length > 0 ? token : null
+  } catch {
+    return null
+  }
+}
+
+function getBearerToken(request: Request) {
+  const authorization = request.headers.get('Authorization')
+  const [scheme, token] = authorization?.split(' ') ?? []
+
+  return scheme?.toLowerCase() === 'bearer' && token ? token : null
 }
 
 function normalizeNullableNumber(value: unknown) {
@@ -476,7 +498,7 @@ function corsHeaders(request: Request) {
   const origin = request.headers.get('Origin')
   const headers = new Headers({
     'Access-Control-Allow-Credentials': 'true',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     Vary: 'Origin',
   })
@@ -517,6 +539,13 @@ function getAllowedOrigins() {
   return {
     exact: new Set(exactOrigins),
     suffixes: suffixOrigins,
+  }
+}
+
+function authBody(accessToken: string, refreshToken: string) {
+  return {
+    accessToken,
+    refreshToken,
   }
 }
 
