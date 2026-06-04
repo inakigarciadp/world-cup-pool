@@ -380,6 +380,45 @@ http.route({
 })
 
 http.route({
+  path: '/api/top-scorers/confirmations',
+  method: 'POST',
+  handler: httpAction(async (ctx, request) => {
+    const payload = await getAccessPayload(request)
+
+    if (payload === null) {
+      return unauthorized(request, clearAccessCookie())
+    }
+
+    const body = await request.json()
+
+    try {
+      const result = await ctx.runMutation(internal.matches.replaceTopScorerConfirmationsForHttp, {
+        poolId: payload.poolId as Id<'pools'>,
+        participantId: payload.participantId as Id<'participants'>,
+        eligiblePlayerIds: Array.isArray(body.eligiblePlayerIds)
+          ? body.eligiblePlayerIds.map(
+              (eligiblePlayerId: unknown) => String(eligiblePlayerId) as Id<'eligiblePlayers'>,
+            )
+          : [],
+      })
+
+      return jsonResponse(result, request)
+    } catch (caught) {
+      return jsonResponse(
+        {
+          error:
+            caught instanceof Error
+              ? caught.message
+              : 'No se han podido guardar los máximos goleadores.',
+        },
+        request,
+        400,
+      )
+    }
+  }),
+})
+
+http.route({
   path: '/auth/login',
   method: 'OPTIONS',
   handler: httpAction(async (_ctx, request) => optionsResponse(request)),
@@ -421,6 +460,11 @@ http.route({
 })
 http.route({
   path: '/api/matches/goals',
+  method: 'OPTIONS',
+  handler: httpAction(async (_ctx, request) => optionsResponse(request)),
+})
+http.route({
+  path: '/api/top-scorers/confirmations',
   method: 'OPTIONS',
   handler: httpAction(async (_ctx, request) => optionsResponse(request)),
 })

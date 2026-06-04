@@ -80,6 +80,10 @@ _Avoid_: Player, player option, scorer candidate, provisional player, free-text 
 An **Eligible Player** selected in an **Entry** for goalscorer scoring. An **Entry** must choose one Goalscorer Pick from each Team Tier. Goalscorer Picks are independent from Team Picks, so the selected Eligible Player only needs to belong to the same Team Tier, not to one of the Entry's selected Team Picks.
 _Avoid_: Top scorer, striker pick
 
+**Top Scorer Confirmation**:
+The Admin's confirmation that one or more **Eligible Players** are officially recognised as tournament top scorers. The top scorer bonus is awarded only from the current confirmation, not from the live goals leaderboard during the tournament.
+_Avoid_: Current goals leader, provisional top scorer
+
 **Match Stake**:
 A reason a **Participant** cares about a **Match** because their **Entry** contains either a **Team Pick** for one of the Match teams or a **Goalscorer Pick** from one of the Match teams. A Participant can have more than one Match Stake in the same Match.
 _Avoid_: Interest, exposure, bet
@@ -108,8 +112,12 @@ _Avoid_: Shootout goals, shootout score
 The Pool-specific meaning derived from a **Match Result**, such as whether a **Team Pick** earned win, draw, loss, or penalty shootout points.
 _Avoid_: Match Result, official result
 
+**Entry Score**:
+The current total points earned by an **Entry** under the Pool rules. An Entry Score changes when the Pool records new football outcomes or confirmed achievements.
+_Avoid_: Stored score, manual score, score column
+
 **Leaderboard**:
-The public ranking of **Participants** by their current score in the **Pool**. The **Leaderboard** is visible from the beginning of the **Pool**, even before any points have been awarded. Entries with the same score share the same position.
+The public ranking of **Participants** by their **Entry Score** in the **Pool**. The **Leaderboard** is visible from the beginning of the **Pool**, even before any points have been awarded. Entries with the same score share the same position.
 _Avoid_: Table, standings, classification
 
 **Match Points**:
@@ -117,8 +125,12 @@ Points awarded to an **Entry** when one of its **Team Picks** plays a match. A n
 _Avoid_: Game points, fixture points
 
 **Stage Bonus**:
-Points awarded to an **Entry** when one of its **Team Picks** qualifies for a configured tournament stage. The bonus is awarded when qualification is confirmed.
+Points awarded to an **Entry** when one of its **Team Picks** has confirmed participation in a configured tournament stage. Stage Bonuses are derived from the team's explicit bracket participation, not manually awarded as separate scoring events or inferred from later stages.
 _Avoid_: Round bonus, advancement points, qualification bonus
+
+**World Cup Winner Bonus**:
+Points awarded to an **Entry** when one of its **Team Picks** wins the World Cup. The winner is derived from the **Match Result** of the Final.
+_Avoid_: Champion stage, final participation bonus
 
 **Synced Result**:
 Tournament data imported from an external source for automatic scoring.
@@ -182,6 +194,9 @@ Domain expert: "Show the Participant once in that Match, with all of their Match
 Dev: "Is a Match Result the same thing as the points awarded for that Match?"
 Domain expert: "No. A Match Result is the football outcome. The Scoring Interpretation derives Pool points from that result."
 
+Dev: "Is an Entry Score something the Admin types in?"
+Domain expert: "No. An Entry Score is the total points earned by an Entry under the Pool rules."
+
 Dev: "Do penalty shootout goals get stored as goals?"
 Domain expert: "No. The Pool stores the Penalty Shootout Outcome, not shootout goal totals or individual shootout goals."
 
@@ -190,6 +205,12 @@ Domain expert: "Store the in-play score as a draw, for example Spain 1-1 Italy, 
 
 Dev: "Does the Goalscorer Pick have to come from one of the Entry's selected Team Picks?"
 Domain expert: "No. Goalscorer Picks are independent from Team Picks, but each Goalscorer Pick must come from a team in the matching Team Tier."
+
+Dev: "Does the current tournament goals leader get the top scorer bonus during the tournament?"
+Domain expert: "No. The top scorer bonus is awarded only after Top Scorer Confirmation."
+
+Dev: "What if the Admin confirms the wrong tournament top scorer?"
+Domain expert: "The Admin can correct the Top Scorer Confirmation, and scoring follows the current confirmation."
 
 Dev: "Can Participants see other Entries before the World Cup starts?"
 Domain expert: "Yes. Entries are public throughout the Pool, including before the Entry Lock."
@@ -207,7 +228,16 @@ Dev: "Are advancement points only for the semifinal and champion?"
 Domain expert: "No. The Pool uses configured Stage Bonuses for each meaningful tournament stage."
 
 Dev: "When is a Stage Bonus awarded?"
-Domain expert: "When the Team Pick's qualification for that stage is confirmed."
+Domain expert: "When the Team Pick's participation in that tournament stage is confirmed by the bracket."
+
+Dev: "Does the Admin need to manually award Spain's Round of 16 bonus?"
+Domain expert: "No. If Spain is confirmed in a Round of 16 Match, Spain has earned the Round of 16 Stage Bonus."
+
+Dev: "If Spain appears in a quarter-final Match, does that automatically award Spain's Round of 16 bonus too?"
+Domain expert: "No. A team earns only the Stage Bonuses for stages where it is explicitly present in the bracket data."
+
+Dev: "Does appearing in the Final mean a team has won the World Cup?"
+Domain expert: "No. Final participation earns the Final Stage Bonus; the World Cup Winner Bonus comes from the Final Match Result."
 
 Dev: "Does a Tier Multiplier apply only to Match Points?"
 Domain expert: "No. For Team Picks, the Tier Multiplier applies to both Match Points and Stage Bonuses."

@@ -13,6 +13,8 @@ import type * as authCrypto from "../authCrypto.js";
 import type * as http from "../http.js";
 import type * as matches from "../matches.js";
 import type * as pools from "../pools.js";
+import type * as scoring from "../scoring.js";
+import type * as scoringRules from "../scoringRules.js";
 
 import type {
   ApiFromModules,
@@ -26,6 +28,8 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   matches: typeof matches;
   pools: typeof pools;
+  scoring: typeof scoring;
+  scoringRules: typeof scoringRules;
 }>;
 
 /**

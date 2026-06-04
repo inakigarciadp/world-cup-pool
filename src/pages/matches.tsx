@@ -24,12 +24,14 @@ import { toast } from 'sonner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   replaceMatchGoals,
+  replaceTopScorerConfirmations,
   saveMatchResult,
   updateMatchTeams,
   type Match,
   type MatchesPayload,
 } from '@/lib/httpApi'
 import { matchesQueryOptions, requireLoadedMatches } from '@/lib/matches-query'
+import { overviewQueryKey } from '@/lib/overview-query'
 import { getFlagEmoji } from '@/lib/teams'
 import { getUserErrorMessage } from '@/lib/user-error'
 
@@ -157,14 +159,6 @@ export function MatchesPage() {
 function GoalscorerLeaderboard({ payload }: { payload: MatchesPayload }) {
   const leaders = payload.goalscorerLeaderboard
 
-  if (leaders.length === 0) {
-    return (
-      <div className="sticker-soft px-5 py-8 text-center">
-        <p className="heading text-lg">Todavía no hay goleadores</p>
-      </div>
-    )
-  }
-
   return (
     <section className="goalscorer-board">
       <header className="goalscorer-board-head">
@@ -175,27 +169,147 @@ function GoalscorerLeaderboard({ payload }: { payload: MatchesPayload }) {
         <Trophy className="size-9 text-coral-ink" aria-hidden="true" />
       </header>
 
-      <div className="goalscorer-list">
-        {leaders.map((leader, index) => (
-          <article
-            key={leader.playerId}
-            className={`goalscorer-row ${index === 0 ? 'is-leading' : ''}`}
-          >
-            <div className="goalscorer-rank">{getGoalscorerRank(leaders, index)}</div>
-            <div className="min-w-0 flex-1">
-              <h3>{leader.playerName}</h3>
-              <p>
-                <span aria-hidden="true">{getFlagEmoji(leader.teamFifaCode)}</span>
-                {leader.teamName}
-              </p>
-            </div>
-            <div className="goalscorer-total">
-              <span>{leader.goals}</span>
-              <small>{leader.goals === 1 ? 'gol' : 'goles'}</small>
-            </div>
-          </article>
-        ))}
+      {payload.session.isAdmin ? <AdminTopScorerEditor payload={payload} /> : null}
+
+      {leaders.length === 0 ? (
+        <div className="sticker-soft px-5 py-8 text-center">
+          <p className="heading text-lg">Todavía no hay goleadores</p>
+        </div>
+      ) : (
+        <div className="goalscorer-list">
+          {leaders.map((leader, index) => (
+            <article
+              key={leader.playerId}
+              className={`goalscorer-row ${index === 0 ? 'is-leading' : ''} ${
+                leader.isConfirmedTopScorer ? 'is-confirmed' : ''
+              }`}
+            >
+              <div className="goalscorer-rank">{getGoalscorerRank(leaders, index)}</div>
+              <div className="min-w-0 flex-1">
+                <h3>{leader.playerName}</h3>
+                <p>
+                  <span aria-hidden="true">{getFlagEmoji(leader.teamFifaCode)}</span>
+                  {leader.teamName}
+                </p>
+                {leader.isConfirmedTopScorer ? (
+                  <span className="top-scorer-chip">Máximo goleador confirmado</span>
+                ) : null}
+              </div>
+              <div className="goalscorer-total">
+                <span>{leader.goals}</span>
+                <small>{leader.goals === 1 ? 'gol' : 'goles'}</small>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function AdminTopScorerEditor({ payload }: { payload: MatchesPayload }) {
+  const queryClient = useQueryClient()
+  const [selectedIds, setSelectedIds] = useState(() =>
+    payload.topScorerConfirmations.map((confirmation) => confirmation.eligiblePlayerId),
+  )
+  const [candidateId, setCandidateId] = useState('')
+  const playersById = useMemo(
+    () => new Map(payload.eligiblePlayers.map((player) => [player.id, player])),
+    [payload.eligiblePlayers],
+  )
+  const selectedPlayers = selectedIds.map((playerId) => playersById.get(playerId)).filter(isDefined)
+  const confirmationMutation = useMutation({
+    mutationFn: () => replaceTopScorerConfirmations(selectedIds),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['matches'] }),
+        queryClient.invalidateQueries({ queryKey: overviewQueryKey }),
+      ])
+      toast.success('Máximos goleadores guardados', {
+        description: 'La clasificación se recalculará con esta confirmación.',
+      })
+    },
+    onError: (error: Error) => {
+      toast.error('No se han podido guardar los máximos goleadores', {
+        description: getUserErrorMessage(error),
+      })
+    },
+  })
+
+  useEffect(() => {
+    setSelectedIds(
+      payload.topScorerConfirmations.map((confirmation) => confirmation.eligiblePlayerId),
+    )
+    setCandidateId('')
+  }, [payload.topScorerConfirmations])
+
+  function addCandidate() {
+    if (!candidateId || selectedIds.includes(candidateId)) {
+      return
+    }
+
+    setSelectedIds((current) => [...current, candidateId])
+    setCandidateId('')
+  }
+
+  return (
+    <section className="admin-block top-scorer-admin">
+      <p className="match-section-title">Confirmación oficial</p>
+      <div className="top-scorer-picker">
+        <AdminSelect
+          label="Jugador"
+          value={candidateId}
+          onChange={setCandidateId}
+          options={payload.eligiblePlayers.map((player) => ({
+            value: player.id,
+            label: `${player.name} · ${player.teamName}`,
+          }))}
+          emptyLabel="Elige goleador"
+        />
+        <button
+          type="button"
+          className="admin-icon-btn"
+          disabled={!candidateId || selectedIds.includes(candidateId)}
+          onClick={addCandidate}
+        >
+          <Plus className="size-4" aria-hidden="true" />
+          Añadir
+        </button>
       </div>
+
+      {selectedPlayers.length === 0 ? (
+        <p className="text-sm font-semibold text-ink-soft">
+          No hay máximos goleadores confirmados.
+        </p>
+      ) : (
+        <div className="top-scorer-confirmed-list">
+          {selectedPlayers.map((player) => (
+            <span key={player.id} className="top-scorer-confirmed-pill">
+              <span aria-hidden="true">{getFlagEmoji(player.teamFifaCode)}</span>
+              <span className="min-w-0 truncate">{player.name}</span>
+              <button
+                type="button"
+                aria-label={`Quitar a ${player.name}`}
+                onClick={() =>
+                  setSelectedIds((current) => current.filter((playerId) => playerId !== player.id))
+                }
+              >
+                <Trash2 className="size-3.5" aria-hidden="true" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <button
+        type="button"
+        className="admin-action"
+        disabled={confirmationMutation.isPending}
+        onClick={() => confirmationMutation.mutate()}
+      >
+        <Save className="size-4" aria-hidden="true" />
+        {confirmationMutation.isPending ? 'Guardando…' : 'Guardar máximos goleadores'}
+      </button>
     </section>
   )
 }
@@ -350,7 +464,10 @@ function AdminMatchEditor({ match, payload }: { match: Match; payload: MatchesPa
   }, [match])
 
   const onMutationSuccess = async (successMessage: string) => {
-    await queryClient.invalidateQueries({ queryKey: ['matches'] })
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['matches'] }),
+      queryClient.invalidateQueries({ queryKey: overviewQueryKey }),
+    ])
     toast.success(successMessage, {
       description: 'Los cambios se han guardado correctamente.',
     })
@@ -730,4 +847,8 @@ function formatGroup(groupName: string) {
 
 function isString(value: string | null): value is string {
   return value !== null
+}
+
+function isDefined<T>(value: T | undefined): value is T {
+  return value !== undefined
 }

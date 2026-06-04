@@ -75,13 +75,13 @@ export default defineSchema({
     poolId: v.id('pools'),
     participantId: v.id('participants'),
     goalscorerPickId: v.optional(v.union(v.id('eligiblePlayers'), v.null())),
-    currentScore: v.number(),
+    // Deprecated: live scoring derives this from scoring facts.
+    currentScore: v.optional(v.number()),
     submittedAt: v.union(v.number(), v.null()),
     updatedAt: v.number(),
   })
     .index('by_poolId', ['poolId'])
-    .index('by_poolId_and_participantId', ['poolId', 'participantId'])
-    .index('by_poolId_and_currentScore', ['poolId', 'currentScore']),
+    .index('by_poolId_and_participantId', ['poolId', 'participantId']),
 
   entryTeamPicks: defineTable({
     poolId: v.id('pools'),
@@ -147,4 +147,13 @@ export default defineSchema({
     .index('by_matchId_and_sortOrder', ['matchId', 'sortOrder'])
     .index('by_poolId', ['poolId'])
     .index('by_creditedPlayerId', ['creditedPlayerId']),
+
+  topScorerConfirmations: defineTable({
+    poolId: v.id('pools'),
+    eligiblePlayerId: v.id('eligiblePlayers'),
+    confirmedAt: v.number(),
+    confirmedByParticipantId: v.id('participants'),
+  })
+    .index('by_poolId', ['poolId'])
+    .index('by_poolId_and_eligiblePlayerId', ['poolId', 'eligiblePlayerId']),
 })

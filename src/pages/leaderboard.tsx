@@ -258,7 +258,7 @@ function getInitials(name: string) {
 
 function formatScore(value: number) {
   return new Intl.NumberFormat('es-ES', {
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 3,
   }).format(value)
 }
 

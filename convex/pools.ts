@@ -1,10 +1,12 @@
 import { v } from 'convex/values'
 
+import { internal } from './_generated/api'
 import { internalMutation, internalQuery, mutation } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx } from './_generated/server'
 import { requireAdminScriptSecret } from './adminScriptAuth'
 import { hashPin, verifyPin } from './authCrypto'
+import { stageBonusSeed } from './scoringRules'
 
 const DEMO_SLUG = 'world-cup-2026'
 const DEFAULT_ENTRY_LOCK_AT = Date.UTC(2026, 5, 11, 19, 0, 0)
@@ -24,6 +26,12 @@ type EntryOverview = {
   }>
   currentScore: number
   submittedAt: number | null
+}
+
+type LeaderboardScore = {
+  entryId: Id<'entries'>
+  participantId: Id<'participants'>
+  currentScore: number
 }
 
 type EligiblePlayerImport = {
@@ -115,7 +123,7 @@ const previewMatchSeed: PreviewMatchSeed[] = [
   {
     matchNumber: 1001,
     offsetMs: -24 * 60 * 60 * 1000,
-    stage: 'Fase de grupos',
+    stage: 'First Stage',
     groupName: 'Grupo Preview A',
     venueName: 'Estadio Inventado del Atlántico',
     venueCity: 'Ciudad Preview',
@@ -149,7 +157,7 @@ const previewMatchSeed: PreviewMatchSeed[] = [
   {
     matchNumber: 1002,
     offsetMs: -30 * 60 * 1000,
-    stage: 'Fase de grupos',
+    stage: 'First Stage',
     groupName: 'Grupo Preview B',
     venueName: 'Arena del Sol Preview',
     venueCity: 'Villa Demo',
@@ -177,7 +185,7 @@ const previewMatchSeed: PreviewMatchSeed[] = [
   {
     matchNumber: 1003,
     offsetMs: 90 * 60 * 1000,
-    stage: 'Fase de grupos',
+    stage: 'First Stage',
     groupName: 'Grupo Preview C',
     venueName: 'Campo Norte de Pruebas',
     venueCity: 'Puerto Fixture',
@@ -187,7 +195,7 @@ const previewMatchSeed: PreviewMatchSeed[] = [
   {
     matchNumber: 1004,
     offsetMs: 8 * 60 * 60 * 1000,
-    stage: 'Fase de grupos',
+    stage: 'First Stage',
     groupName: 'Grupo Preview D',
     venueName: 'Estadio de la Maqueta',
     venueCity: 'Bahía Mockup',
@@ -197,7 +205,7 @@ const previewMatchSeed: PreviewMatchSeed[] = [
   {
     matchNumber: 1005,
     offsetMs: 28 * 60 * 60 * 1000,
-    stage: 'Dieciseisavos de final',
+    stage: 'Round of 32',
     groupName: null,
     venueName: 'Parque Bracket Preview',
     venueCity: 'Nueva Prueba',
@@ -207,7 +215,7 @@ const previewMatchSeed: PreviewMatchSeed[] = [
   {
     matchNumber: 1006,
     offsetMs: 4 * 24 * 60 * 60 * 1000,
-    stage: 'Cuartos de final',
+    stage: 'Quarter-final',
     groupName: null,
     venueName: 'Coliseo Ficticio',
     venueCity: 'Costa Demo',
@@ -260,8 +268,7 @@ export const getAuthenticatedOverview = internalQuery({
       .take(25)
     const entries = await ctx.db
       .query('entries')
-      .withIndex('by_poolId_and_currentScore', (q) => q.eq('poolId', pool._id))
-      .order('desc')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
       .take(100)
     const entryTeamPicks = await ctx.db
       .query('entryTeamPicks')
@@ -278,6 +285,13 @@ export const getAuthenticatedOverview = internalQuery({
     const teamsByCode = new Map(teams.map((team) => [team.fifaCode, team]))
     const eligiblePlayersById = new Map(eligiblePlayers.map((player) => [player._id, player]))
     const entriesByParticipantId = new Map(entries.map((entry) => [entry.participantId, entry]))
+    const leaderboardScores: LeaderboardScore[] = await ctx.runQuery(
+      internal.scoring.getLeaderboardScoresForPool,
+      { poolId: pool._id },
+    )
+    const scoresByEntryId = new Map(
+      leaderboardScores.map((score) => [score.entryId, score.currentScore]),
+    )
     const picksByEntryId = new Map<Id<'entries'>, Doc<'entryTeamPicks'>[]>()
     const goalscorerPicksByEntryId = new Map<Id<'entries'>, Doc<'entryGoalscorerPicks'>[]>()
 
@@ -337,7 +351,7 @@ export const getAuthenticatedOverview = internalQuery({
         participantName: participant.displayName,
         goalscorerPicks,
         teamPicks,
-        currentScore: entry?.currentScore ?? 0,
+        currentScore: entry === null ? 0 : (scoresByEntryId.get(entry._id) ?? 0),
         submittedAt: entry?.submittedAt ?? null,
       }
     })
@@ -511,7 +525,6 @@ export const saveEntryForHttp = internalMutation({
             poolId: pool._id,
             participantId: participant._id,
             goalscorerPickId: null,
-            currentScore: 0,
             submittedAt: now,
             updatedAt: now,
           })
@@ -944,9 +957,16 @@ async function ensureWorldCupSeedData(ctx: MutationCtx, poolId: Id<'pools'>) {
     .query('eligiblePlayers')
     .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
     .take(2000)
+  const existingStageBonuses = await ctx.db
+    .query('stageBonuses')
+    .withIndex('by_poolId_and_sortOrder', (q) => q.eq('poolId', poolId))
+    .take(25)
   const tiersByOrder = new Map(existingTiers.map((tier) => [tier.sortOrder, tier._id]))
   const teamsByCode = new Map(existingTeams.map((team) => [team.fifaCode, team._id]))
   const teamsByName = new Map(existingTeams.map((team) => [team.name, team._id]))
+  const stageBonusesByOrder = new Map(
+    existingStageBonuses.map((bonus) => [bonus.sortOrder, bonus._id]),
+  )
   for (const tier of tierSeed) {
     const existingTierId = tiersByOrder.get(tier.sortOrder)
 
@@ -990,6 +1010,27 @@ async function ensureWorldCupSeedData(ctx: MutationCtx, poolId: Id<'pools'>) {
         groupCode: team.groupCode,
       })
       teamsByName.set(team.name, existingId)
+    }
+  }
+
+  for (const bonus of stageBonusSeed) {
+    const existingBonusId = stageBonusesByOrder.get(bonus.sortOrder)
+
+    if (existingBonusId === undefined) {
+      stageBonusesByOrder.set(
+        bonus.sortOrder,
+        await ctx.db.insert('stageBonuses', {
+          poolId,
+          stage: bonus.stage,
+          points: bonus.points,
+          sortOrder: bonus.sortOrder,
+        }),
+      )
+    } else {
+      await ctx.db.patch(existingBonusId, {
+        stage: bonus.stage,
+        points: bonus.points,
+      })
     }
   }
 
