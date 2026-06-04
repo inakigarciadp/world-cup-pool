@@ -95,15 +95,18 @@ export type GoalscorersPayload = {
   }>
 }
 
-export type MatchAdminPayload = {
+export type MatchesAdminPayload = {
   teams: TeamOption[]
   eligiblePlayers: EligiblePlayerOption[]
-  completeness: {
-    expectedGoals: number
-    recordedGoals: number
-    missingGoals: number
-    extraGoals: number
-  } | null
+  matches: Array<{
+    matchId: string
+    completeness: {
+      expectedGoals: number
+      recordedGoals: number
+      missingGoals: number
+      extraGoals: number
+    } | null
+  }>
 }
 
 export type GoalscorersAdminPayload = {
@@ -230,14 +233,14 @@ export async function getGoalscorers() {
   return (await parseJsonResponse(response)) as GoalscorersPayload
 }
 
-export async function getMatchAdmin(matchId: string) {
-  const response = await fetchWithRefreshRetry(`/api/matches/admin?matchId=${matchId}`)
+export async function getMatchesAdmin() {
+  const response = await fetchWithRefreshRetry('/api/matches/admin')
 
   if (response.status === 401) {
     return null
   }
 
-  return (await parseJsonResponse(response)) as MatchAdminPayload
+  return (await parseJsonResponse(response)) as MatchesAdminPayload
 }
 
 export async function getGoalscorersAdmin() {

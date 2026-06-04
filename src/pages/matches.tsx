@@ -30,15 +30,16 @@ import {
   type GoalscorersAdminPayload,
   type GoalscorersPayload,
   type Match,
+  type MatchesAdminPayload,
 } from '@/lib/httpApi'
 import {
   goalscorersAdminQueryOptions,
   goalscorersQueryOptions,
-  matchAdminQueryOptions,
+  matchesAdminQueryOptions,
   matchesQueryOptions,
   requireLoadedGoalscorers,
   requireLoadedGoalscorersAdmin,
-  requireLoadedMatchAdmin,
+  requireLoadedMatchesAdmin,
   requireLoadedMatches,
 } from '@/lib/matches-query'
 import { overviewQueryKey } from '@/lib/overview-query'
@@ -57,6 +58,7 @@ export function MatchesPage() {
   const [includePast, setIncludePast] = useState(false)
   const [showOnlyMine, setShowOnlyMine] = useState(false)
   const [activeTab, setActiveTab] = useState('partidos')
+  const [shouldLoadMatchesAdmin, setShouldLoadMatchesAdmin] = useState(false)
   const queryClient = useQueryClient()
   const { data, isLoading, error } = useQuery(matchesQueryOptions(includePast))
   const goalscorersQuery = useQuery({
@@ -65,6 +67,10 @@ export function MatchesPage() {
   })
   const payload = data === null || data === undefined ? null : requireLoadedMatches(data)
   const isAdmin = payload?.session.isAdmin ?? false
+  const matchesAdminQuery = useQuery({
+    ...matchesAdminQueryOptions,
+    enabled: isAdmin && shouldLoadMatchesAdmin,
+  })
   const goalscorersAdminQuery = useQuery({
     ...goalscorersAdminQueryOptions,
     enabled: isAdmin && activeTab === 'goleadores',
@@ -77,6 +83,10 @@ export function MatchesPage() {
     goalscorersAdminQuery.data === null || goalscorersAdminQuery.data === undefined
       ? null
       : requireLoadedGoalscorersAdmin(goalscorersAdminQuery.data)
+  const matchesAdmin =
+    matchesAdminQuery.data === null || matchesAdminQuery.data === undefined
+      ? null
+      : requireLoadedMatchesAdmin(matchesAdminQuery.data)
   const visibleMatches =
     payload === null
       ? []
@@ -86,6 +96,7 @@ export function MatchesPage() {
 
   useEffect(() => {
     if (payload === null) {
+      setShouldLoadMatchesAdmin(false)
       return
     }
 
@@ -94,6 +105,9 @@ export function MatchesPage() {
 
       if (payload.session.isAdmin) {
         void queryClient.prefetchQuery(goalscorersAdminQueryOptions)
+        setShouldLoadMatchesAdmin(true)
+      } else {
+        setShouldLoadMatchesAdmin(false)
       }
     })
 
@@ -175,7 +189,14 @@ export function MatchesPage() {
           {payload ? (
             <div className="space-y-4">
               {visibleMatches.map((match) => (
-                <MatchCard key={match.id} match={match} isAdmin={payload.session.isAdmin} />
+                <MatchCard
+                  key={match.id}
+                  match={match}
+                  isAdmin={payload.session.isAdmin}
+                  adminPayload={matchesAdmin}
+                  adminIsLoading={matchesAdminQuery.isLoading}
+                  adminError={matchesAdminQuery.error}
+                />
               ))}
             </div>
           ) : null}
@@ -417,7 +438,19 @@ function AdminTopScorerEditor({
   )
 }
 
-function MatchCard({ match, isAdmin }: { match: Match; isAdmin: boolean }) {
+function MatchCard({
+  match,
+  isAdmin,
+  adminPayload,
+  adminIsLoading,
+  adminError,
+}: {
+  match: Match
+  isAdmin: boolean
+  adminPayload: MatchesAdminPayload | null
+  adminIsLoading: boolean
+  adminError: Error | null
+}) {
   return (
     <article className={`match-card ${match.hasCurrentParticipantStake ? 'is-mine' : ''}`}>
       <header className="match-card-head">
@@ -494,7 +527,14 @@ function MatchCard({ match, isAdmin }: { match: Match; isAdmin: boolean }) {
         )}
       </section>
 
-      {isAdmin ? <AdminMatchEditor match={match} /> : null}
+      {isAdmin ? (
+        <AdminMatchEditor
+          match={match}
+          adminPayload={adminPayload}
+          isLoading={adminIsLoading}
+          error={adminError}
+        />
+      ) : null}
     </article>
   )
 }
@@ -539,17 +579,21 @@ function ResultBlock({ match }: { match: Match }) {
   )
 }
 
-function AdminMatchEditor({ match }: { match: Match }) {
+function AdminMatchEditor({
+  match,
+  adminPayload,
+  isLoading,
+  error,
+}: {
+  match: Match
+  adminPayload: MatchesAdminPayload | null
+  isLoading: boolean
+  error: Error | null
+}) {
   const queryClient = useQueryClient()
   const [isOpen, setIsOpen] = useState(false)
-  const adminQuery = useQuery({
-    ...matchAdminQueryOptions(match.id),
-    enabled: isOpen,
-  })
-  const adminPayload =
-    adminQuery.data === null || adminQuery.data === undefined
-      ? null
-      : requireLoadedMatchAdmin(adminQuery.data)
+  const matchAdmin = adminPayload?.matches.find((adminMatch) => adminMatch.matchId === match.id)
+  const isAdminLoading = isOpen && (isLoading || adminPayload === null)
   const [homeTeamId, setHomeTeamId] = useState(match.home.team?.id ?? '')
   const [awayTeamId, setAwayTeamId] = useState(match.away.team?.id ?? '')
   const [homeGoals, setHomeGoals] = useState(match.result?.homeGoals.toString() ?? '')
@@ -673,24 +717,24 @@ function AdminMatchEditor({ match }: { match: Match }) {
       </summary>
 
       <div className="match-admin-body">
-        {adminQuery.isLoading ? (
+        {isAdminLoading ? (
           <p className="text-sm font-semibold text-ink-soft">Cargando opciones…</p>
         ) : null}
 
-        {adminQuery.error ? (
+        {error ? (
           <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
-            {getUserErrorMessage(adminQuery.error, 'No se han podido cargar las opciones.')}
+            {getUserErrorMessage(error, 'No se han podido cargar las opciones.')}
           </div>
         ) : null}
 
-        {adminPayload ? (
+        {adminPayload && matchAdmin ? (
           <>
-            {adminPayload.completeness ? (
+            {matchAdmin.completeness ? (
               <div className="admin-warning">
                 <AlertTriangle className="size-4" aria-hidden="true" />
-                {adminPayload.completeness.missingGoals > 0
-                  ? `Faltan goleadores: ${adminPayload.completeness.recordedGoals}/${adminPayload.completeness.expectedGoals} registrados`
-                  : `Sobran goleadores: ${adminPayload.completeness.recordedGoals}/${adminPayload.completeness.expectedGoals} registrados`}
+                {matchAdmin.completeness.missingGoals > 0
+                  ? `Faltan goleadores: ${matchAdmin.completeness.recordedGoals}/${matchAdmin.completeness.expectedGoals} registrados`
+                  : `Sobran goleadores: ${matchAdmin.completeness.recordedGoals}/${matchAdmin.completeness.expectedGoals} registrados`}
               </div>
             ) : null}
 
