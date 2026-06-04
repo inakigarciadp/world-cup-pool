@@ -325,6 +325,10 @@ async function parseJsonResponse(response: Response) {
 }
 
 function getConvexSiteUrl() {
+  if (import.meta.env.VITE_VERCEL_ENV === 'production') {
+    return ''
+  }
+
   const configuredSiteUrl = import.meta.env.VITE_CONVEX_SITE_URL
 
   if (configuredSiteUrl) {

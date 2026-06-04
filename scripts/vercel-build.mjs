@@ -7,6 +7,8 @@ if (!convexUrl) {
   process.exit(1)
 }
 
+process.env.VITE_VERCEL_ENV ??= process.env.VERCEL_ENV
+
 if (process.env.VERCEL_ENV !== 'production') {
   process.env.VITE_CONVEX_SITE_URL ??= convexUrl.replace('.convex.cloud', '.convex.site')
 }
