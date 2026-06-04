@@ -174,7 +174,6 @@ function GoalscorerLeaderboard({ payload }: { payload: MatchesPayload }) {
         <div>
           <p className="section-label">Goleadores</p>
           <h2>Tabla de goleadores</h2>
-          <p>Solo jugadores elegibles con al menos un gol registrado.</p>
         </div>
         <Trophy className="size-9 text-coral-ink" aria-hidden="true" />
       </header>
