@@ -744,7 +744,7 @@ export const seedPreview = mutation({
   args: {},
   handler: async (ctx) => {
     const pool = await getOrCreatePool(ctx, DEMO_SLUG)
-    const teamsByName = await ensurePreviewEligiblePlayers(ctx, pool._id)
+    const { teamsByName } = await ensurePreviewEligiblePlayers(ctx, pool._id)
     const users = [
       { username: 'admin', displayName: 'Admin Preview', pin: 'preview-admin', isAdmin: true },
       { username: 'jugador-uno', displayName: 'Jugador Uno', pin: 'preview-uno', isAdmin: false },
