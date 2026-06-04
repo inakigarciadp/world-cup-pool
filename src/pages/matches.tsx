@@ -43,6 +43,7 @@ import {
   requireLoadedMatches,
 } from '@/lib/matches-query'
 import { overviewQueryKey } from '@/lib/overview-query'
+import { useOverview } from '@/lib/overview-context'
 import { getFlagEmoji } from '@/lib/teams'
 import { getUserErrorMessage } from '@/lib/user-error'
 
@@ -55,6 +56,7 @@ type GoalDraft = {
 }
 
 export function MatchesPage() {
+  const { overview } = useOverview()
   const [includePast, setIncludePast] = useState(false)
   const [showOnlyMine, setShowOnlyMine] = useState(false)
   const [activeTab, setActiveTab] = useState('partidos')
@@ -66,7 +68,7 @@ export function MatchesPage() {
     enabled: activeTab === 'goleadores',
   })
   const payload = data === null || data === undefined ? null : requireLoadedMatches(data)
-  const isAdmin = payload?.session.isAdmin ?? false
+  const isAdmin = overview.session.isAdmin
   const matchesAdminQuery = useQuery({
     ...matchesAdminQueryOptions,
     enabled: isAdmin && shouldLoadMatchesAdmin,
@@ -103,7 +105,7 @@ export function MatchesPage() {
     const frame = window.requestAnimationFrame(() => {
       void queryClient.prefetchQuery(goalscorersQueryOptions)
 
-      if (payload.session.isAdmin) {
+      if (isAdmin) {
         void queryClient.prefetchQuery(goalscorersAdminQueryOptions)
         setShouldLoadMatchesAdmin(true)
       } else {
@@ -112,7 +114,7 @@ export function MatchesPage() {
     })
 
     return () => window.cancelAnimationFrame(frame)
-  }, [payload, queryClient])
+  }, [isAdmin, payload, queryClient])
 
   return (
     <section className="space-y-5">
@@ -192,7 +194,7 @@ export function MatchesPage() {
                 <MatchCard
                   key={match.id}
                   match={match}
-                  isAdmin={payload.session.isAdmin}
+                  isAdmin={isAdmin}
                   adminPayload={matchesAdmin}
                   adminIsLoading={matchesAdminQuery.isLoading}
                   adminError={matchesAdminQuery.error}
@@ -221,7 +223,7 @@ export function MatchesPage() {
           {payload && goalscorers ? (
             <GoalscorerLeaderboard
               payload={goalscorers}
-              isAdmin={payload.session.isAdmin}
+              isAdmin={isAdmin}
               adminPayload={goalscorersAdmin}
               adminIsLoading={goalscorersAdminQuery.isLoading}
               adminError={goalscorersAdminQuery.error}
