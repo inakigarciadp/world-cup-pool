@@ -100,6 +100,15 @@ export type MatchesPayload = {
     teamName: string
     teamFifaCode: string
     goals: number
+    isConfirmedTopScorer: boolean
+  }>
+  topScorerConfirmations: Array<{
+    eligiblePlayerId: string
+    playerName: string
+    teamId: string | null
+    teamName: string
+    teamFifaCode: string
+    confirmedAt: number
   }>
   matches: Match[]
 }
@@ -266,6 +275,15 @@ export async function replaceMatchGoals({
     await fetchWithRefreshRetry('/api/matches/goals', {
       method: 'POST',
       body: JSON.stringify({ matchId, goals }),
+    }),
+  )
+}
+
+export async function replaceTopScorerConfirmations(eligiblePlayerIds: string[]) {
+  return await parseJsonResponse(
+    await fetchWithRefreshRetry('/api/top-scorers/confirmations', {
+      method: 'POST',
+      body: JSON.stringify({ eligiblePlayerIds }),
     }),
   )
 }

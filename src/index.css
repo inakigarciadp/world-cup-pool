@@ -1364,6 +1364,11 @@
     background:
       linear-gradient(95deg, oklch(0.69 0.155 33 / 0.16) 0 8rem, transparent 16rem), var(--surface);
   }
+  .goalscorer-row.is-confirmed {
+    border-style: solid;
+    border-color: oklch(0.56 0.13 145 / 0.42);
+    box-shadow: inset 4px 0 0 var(--mint-ink);
+  }
 
   .goalscorer-rank {
     display: grid;
@@ -1398,6 +1403,67 @@
     font-family: var(--font-heading);
     font-size: 0.78rem;
     font-weight: 800;
+  }
+
+  .top-scorer-chip {
+    margin-top: 0.4rem;
+    display: inline-flex;
+    max-width: 100%;
+    border-radius: 999px;
+    background: var(--mint);
+    color: var(--mint-ink);
+    padding: 0.22rem 0.55rem;
+    font-family: var(--font-heading);
+    font-size: 0.64rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .top-scorer-admin {
+    border-radius: 1.1rem;
+    border: 1px dashed var(--hairline);
+    background: var(--paper-deep);
+    padding: 0.85rem;
+  }
+
+  .top-scorer-picker {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.55rem;
+    align-items: end;
+  }
+
+  .top-scorer-confirmed-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+
+  .top-scorer-confirmed-pill {
+    display: inline-flex;
+    min-width: 0;
+    max-width: 100%;
+    align-items: center;
+    gap: 0.4rem;
+    border-radius: 999px;
+    border: 1px solid oklch(0.56 0.13 145 / 0.26);
+    background: var(--surface);
+    color: var(--ink);
+    padding: 0.32rem 0.42rem 0.32rem 0.65rem;
+    font-family: var(--font-heading);
+    font-size: 0.76rem;
+    font-weight: 850;
+  }
+  .top-scorer-confirmed-pill button {
+    display: grid;
+    width: 1.55rem;
+    height: 1.55rem;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--paper-deep);
+    color: var(--coral-ink);
   }
 
   .goalscorer-total {
@@ -1783,8 +1849,12 @@
     .goal-edit-row {
       grid-template-columns: 1fr;
     }
+    .top-scorer-picker {
+      grid-template-columns: 1fr;
+    }
     .own-goal-toggle,
-    .goal-edit-row .admin-icon-btn {
+    .goal-edit-row .admin-icon-btn,
+    .top-scorer-picker .admin-icon-btn {
       width: 100%;
     }
   }

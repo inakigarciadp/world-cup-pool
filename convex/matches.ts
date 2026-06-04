@@ -9,6 +9,7 @@ const DEMO_SLUG = 'world-cup-2026'
 const DEFAULT_MATCH_WINDOW_MS = 3 * 60 * 60 * 1000
 const MAX_MATCHES = 200
 const MAX_GOALS_PER_MATCH = 40
+const MAX_TOP_SCORER_CONFIRMATIONS = 200
 
 type AuthenticatedContext = {
   pool: Doc<'pools'>
@@ -90,6 +91,10 @@ export const getMatchesForHttp = internalQuery({
       .query('matchGoals')
       .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
       .take(2000)
+    const topScorerConfirmations = await ctx.db
+      .query('topScorerConfirmations')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(MAX_TOP_SCORER_CONFIRMATIONS)
 
     const tiersById = new Map(tiers.map((tier) => [tier._id, tier]))
     const teamsById = new Map(teams.map((team) => [team._id, team]))
@@ -101,6 +106,9 @@ export const getMatchesForHttp = internalQuery({
     const goalscorerPicksByEntryId = groupByEntry(entryGoalscorerPicks)
     const resultsByMatchId = new Map(results.map((result) => [result.matchId, result]))
     const goalsByMatchId = new Map<Id<'matches'>, Doc<'matchGoals'>[]>()
+    const confirmedTopScorerIds = new Set(
+      topScorerConfirmations.map((confirmation) => confirmation.eligiblePlayerId),
+    )
 
     for (const goal of goals) {
       goalsByMatchId.set(goal.matchId, [...(goalsByMatchId.get(goal.matchId) ?? []), goal])
@@ -142,6 +150,7 @@ export const getMatchesForHttp = internalQuery({
           teamName: team?.name ?? player.teamName,
           teamFifaCode: team?.fifaCode ?? player.teamFifaCode ?? '',
           goals,
+          isConfirmedTopScorer: confirmedTopScorerIds.has(playerId),
         }
       })
       .filter(isPresent)
@@ -179,6 +188,27 @@ export const getMatchesForHttp = internalQuery({
           }
         }),
       goalscorerLeaderboard,
+      topScorerConfirmations: topScorerConfirmations
+        .map((confirmation) => {
+          const player = playersById.get(confirmation.eligiblePlayerId)
+
+          if (player === undefined) {
+            return null
+          }
+
+          const team = resolvePlayerTeam(player, teamsById, teamsByCode, teamsByName)
+
+          return {
+            eligiblePlayerId: confirmation.eligiblePlayerId,
+            playerName: player.name,
+            teamId: team?._id ?? null,
+            teamName: team?.name ?? player.teamName,
+            teamFifaCode: team?.fifaCode ?? player.teamFifaCode ?? '',
+            confirmedAt: confirmation.confirmedAt,
+          }
+        })
+        .filter(isPresent)
+        .sort((left, right) => left.playerName.localeCompare(right.playerName)),
       matches: matches.map((match) => {
         const homeTeam =
           match.homeTeamId === null ? null : (teamsById.get(match.homeTeamId) ?? null)
@@ -459,6 +489,52 @@ export const replaceMatchGoalsForHttp = internalMutation({
 
     for (const goal of validatedGoals) {
       await ctx.db.insert('matchGoals', goal)
+    }
+
+    return { ok: true }
+  },
+})
+
+export const replaceTopScorerConfirmationsForHttp = internalMutation({
+  args: {
+    poolId: v.id('pools'),
+    participantId: v.id('participants'),
+    eligiblePlayerIds: v.array(v.id('eligiblePlayers')),
+  },
+  handler: async (ctx, args) => {
+    const { pool, participant } = await requireAdminParticipant(ctx, args)
+    const uniquePlayerIds = Array.from(new Set(args.eligiblePlayerIds))
+
+    if (uniquePlayerIds.length > MAX_TOP_SCORER_CONFIRMATIONS) {
+      throw new Error('Hay demasiados goleadores confirmados.')
+    }
+
+    for (const eligiblePlayerId of uniquePlayerIds) {
+      const player = await ctx.db.get(eligiblePlayerId)
+
+      if (player === null || player.poolId !== pool._id || !player.isActive) {
+        throw new Error('El goleador confirmado debe ser un jugador elegible.')
+      }
+    }
+
+    const existingConfirmations = await ctx.db
+      .query('topScorerConfirmations')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(MAX_TOP_SCORER_CONFIRMATIONS)
+
+    for (const confirmation of existingConfirmations) {
+      await ctx.db.delete(confirmation._id)
+    }
+
+    const now = Date.now()
+
+    for (const eligiblePlayerId of uniquePlayerIds) {
+      await ctx.db.insert('topScorerConfirmations', {
+        poolId: pool._id,
+        eligiblePlayerId,
+        confirmedAt: now,
+        confirmedByParticipantId: participant._id,
+      })
     }
 
     return { ok: true }
