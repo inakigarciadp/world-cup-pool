@@ -93,10 +93,10 @@
   .app-shell {
     --bottom-nav-reserved-space: calc(5.75rem + env(safe-area-inset-bottom));
     background:
-      radial-gradient(60rem 38rem at 12% -10%, oklch(0.95 0.06 80 / 0.7), transparent 65%),
-      radial-gradient(50rem 32rem at 110% 6%, oklch(0.88 0.11 25 / 0.45), transparent 60%),
-      radial-gradient(40rem 26rem at 50% 110%, oklch(0.88 0.09 165 / 0.5), transparent 60%),
-      var(--paper);
+      radial-gradient(60rem 38rem at 12% -10%, oklch(0.82 0.14 232 / 0.8), transparent 65%),
+      radial-gradient(50rem 32rem at 110% 6%, oklch(0.68 0.18 250 / 0.55), transparent 60%),
+      radial-gradient(40rem 26rem at 50% 110%, oklch(0.76 0.12 210 / 0.65), transparent 60%),
+      oklch(0.86 0.12 238);
     background-attachment: fixed;
     scroll-padding-bottom: var(--bottom-nav-reserved-space);
   }
