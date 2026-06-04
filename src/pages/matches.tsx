@@ -27,10 +27,20 @@ import {
   replaceTopScorerConfirmations,
   saveMatchResult,
   updateMatchTeams,
+  type GoalscorersAdminPayload,
+  type GoalscorersPayload,
   type Match,
-  type MatchesPayload,
 } from '@/lib/httpApi'
-import { matchesQueryOptions, requireLoadedMatches } from '@/lib/matches-query'
+import {
+  goalscorersAdminQueryOptions,
+  goalscorersQueryOptions,
+  matchAdminQueryOptions,
+  matchesQueryOptions,
+  requireLoadedGoalscorers,
+  requireLoadedGoalscorersAdmin,
+  requireLoadedMatchAdmin,
+  requireLoadedMatches,
+} from '@/lib/matches-query'
 import { overviewQueryKey } from '@/lib/overview-query'
 import { getFlagEmoji } from '@/lib/teams'
 import { getUserErrorMessage } from '@/lib/user-error'
@@ -46,14 +56,49 @@ type GoalDraft = {
 export function MatchesPage() {
   const [includePast, setIncludePast] = useState(false)
   const [showOnlyMine, setShowOnlyMine] = useState(false)
+  const [activeTab, setActiveTab] = useState('partidos')
+  const queryClient = useQueryClient()
   const { data, isLoading, error } = useQuery(matchesQueryOptions(includePast))
+  const goalscorersQuery = useQuery({
+    ...goalscorersQueryOptions,
+    enabled: activeTab === 'goleadores',
+  })
   const payload = data === null || data === undefined ? null : requireLoadedMatches(data)
+  const isAdmin = payload?.session.isAdmin ?? false
+  const goalscorersAdminQuery = useQuery({
+    ...goalscorersAdminQueryOptions,
+    enabled: isAdmin && activeTab === 'goleadores',
+  })
+  const goalscorers =
+    goalscorersQuery.data === null || goalscorersQuery.data === undefined
+      ? null
+      : requireLoadedGoalscorers(goalscorersQuery.data)
+  const goalscorersAdmin =
+    goalscorersAdminQuery.data === null || goalscorersAdminQuery.data === undefined
+      ? null
+      : requireLoadedGoalscorersAdmin(goalscorersAdminQuery.data)
   const visibleMatches =
     payload === null
       ? []
       : showOnlyMine
         ? payload.matches.filter((match) => match.hasCurrentParticipantStake)
         : payload.matches
+
+  useEffect(() => {
+    if (payload === null) {
+      return
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      void queryClient.prefetchQuery(goalscorersQueryOptions)
+
+      if (payload.session.isAdmin) {
+        void queryClient.prefetchQuery(goalscorersAdminQueryOptions)
+      }
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [payload, queryClient])
 
   return (
     <section className="space-y-5">
@@ -65,7 +110,7 @@ export function MatchesPage() {
         <CalendarDays className="size-10 text-sun-ink" aria-hidden="true" />
       </header>
 
-      <Tabs defaultValue="partidos">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList aria-label="Contenido de partidos">
           <TabsTrigger value="partidos">Partidos</TabsTrigger>
           <TabsTrigger value="goleadores">Goleadores</TabsTrigger>
@@ -130,33 +175,56 @@ export function MatchesPage() {
           {payload ? (
             <div className="space-y-4">
               {visibleMatches.map((match) => (
-                <MatchCard key={match.id} match={match} payload={payload} />
+                <MatchCard key={match.id} match={match} isAdmin={payload.session.isAdmin} />
               ))}
             </div>
           ) : null}
         </TabsContent>
 
         <TabsContent value="goleadores">
-          {isLoading ? (
+          {goalscorersQuery.isLoading ? (
             <div className="sticker-soft px-5 py-6 text-sm font-semibold text-ink-soft">
               Cargando goleadores…
             </div>
           ) : null}
 
-          {error ? (
+          {goalscorersQuery.error ? (
             <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
-              {getUserErrorMessage(error, 'No se han podido cargar los goleadores.')}
+              {getUserErrorMessage(
+                goalscorersQuery.error,
+                'No se han podido cargar los goleadores.',
+              )}
             </div>
           ) : null}
 
-          {payload ? <GoalscorerLeaderboard payload={payload} /> : null}
+          {payload && goalscorers ? (
+            <GoalscorerLeaderboard
+              payload={goalscorers}
+              isAdmin={payload.session.isAdmin}
+              adminPayload={goalscorersAdmin}
+              adminIsLoading={goalscorersAdminQuery.isLoading}
+              adminError={goalscorersAdminQuery.error}
+            />
+          ) : null}
         </TabsContent>
       </Tabs>
     </section>
   )
 }
 
-function GoalscorerLeaderboard({ payload }: { payload: MatchesPayload }) {
+function GoalscorerLeaderboard({
+  payload,
+  isAdmin,
+  adminPayload,
+  adminIsLoading,
+  adminError,
+}: {
+  payload: GoalscorersPayload
+  isAdmin: boolean
+  adminPayload: GoalscorersAdminPayload | null
+  adminIsLoading: boolean
+  adminError: Error | null
+}) {
   const leaders = payload.goalscorerLeaderboard
 
   return (
@@ -169,7 +237,13 @@ function GoalscorerLeaderboard({ payload }: { payload: MatchesPayload }) {
         <Trophy className="size-9 text-coral-ink" aria-hidden="true" />
       </header>
 
-      {payload.session.isAdmin ? <AdminTopScorerEditor payload={payload} /> : null}
+      {isAdmin ? (
+        <AdminTopScorerEditor
+          payload={adminPayload}
+          isLoading={adminIsLoading}
+          error={adminError}
+        />
+      ) : null}
 
       {leaders.length === 0 ? (
         <div className="sticker-soft px-5 py-8 text-center">
@@ -207,22 +281,29 @@ function GoalscorerLeaderboard({ payload }: { payload: MatchesPayload }) {
   )
 }
 
-function AdminTopScorerEditor({ payload }: { payload: MatchesPayload }) {
+function AdminTopScorerEditor({
+  payload,
+  isLoading,
+  error,
+}: {
+  payload: GoalscorersAdminPayload | null
+  isLoading: boolean
+  error: Error | null
+}) {
   const queryClient = useQueryClient()
-  const [selectedIds, setSelectedIds] = useState(() =>
-    payload.topScorerConfirmations.map((confirmation) => confirmation.eligiblePlayerId),
-  )
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [candidateId, setCandidateId] = useState('')
   const playersById = useMemo(
-    () => new Map(payload.eligiblePlayers.map((player) => [player.id, player])),
-    [payload.eligiblePlayers],
+    () => new Map((payload?.eligiblePlayers ?? []).map((player) => [player.id, player])),
+    [payload?.eligiblePlayers],
   )
   const selectedPlayers = selectedIds.map((playerId) => playersById.get(playerId)).filter(isDefined)
   const confirmationMutation = useMutation({
     mutationFn: () => replaceTopScorerConfirmations(selectedIds),
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['matches'] }),
+        queryClient.invalidateQueries({ queryKey: ['goalscorers'] }),
+        queryClient.invalidateQueries({ queryKey: ['goalscorers', 'admin'] }),
         queryClient.invalidateQueries({ queryKey: overviewQueryKey }),
       ])
       toast.success('Máximos goleadores guardados', {
@@ -237,11 +318,15 @@ function AdminTopScorerEditor({ payload }: { payload: MatchesPayload }) {
   })
 
   useEffect(() => {
+    if (payload === null) {
+      return
+    }
+
     setSelectedIds(
       payload.topScorerConfirmations.map((confirmation) => confirmation.eligiblePlayerId),
     )
     setCandidateId('')
-  }, [payload.topScorerConfirmations])
+  }, [payload])
 
   function addCandidate() {
     if (!candidateId || selectedIds.includes(candidateId)) {
@@ -254,67 +339,85 @@ function AdminTopScorerEditor({ payload }: { payload: MatchesPayload }) {
 
   return (
     <section className="admin-block top-scorer-admin">
-      <p className="match-section-title">Confirmación oficial</p>
-      <div className="top-scorer-picker">
-        <AdminSelect
-          label="Jugador"
-          value={candidateId}
-          onChange={setCandidateId}
-          options={payload.eligiblePlayers.map((player) => ({
-            value: player.id,
-            label: `${player.name} · ${player.teamName}`,
-          }))}
-          emptyLabel="Elige goleador"
-        />
-        <button
-          type="button"
-          className="admin-icon-btn"
-          disabled={!candidateId || selectedIds.includes(candidateId)}
-          onClick={addCandidate}
-        >
-          <Plus className="size-4" aria-hidden="true" />
-          Añadir
-        </button>
-      </div>
+      <p className="match-section-title">
+        <ShieldCheck className="size-4" aria-hidden="true" />
+        Confirmación oficial
+      </p>
 
-      {selectedPlayers.length === 0 ? (
-        <p className="text-sm font-semibold text-ink-soft">
-          No hay máximos goleadores confirmados.
-        </p>
-      ) : (
-        <div className="top-scorer-confirmed-list">
-          {selectedPlayers.map((player) => (
-            <span key={player.id} className="top-scorer-confirmed-pill">
-              <span aria-hidden="true">{getFlagEmoji(player.teamFifaCode)}</span>
-              <span className="min-w-0 truncate">{player.name}</span>
-              <button
-                type="button"
-                aria-label={`Quitar a ${player.name}`}
-                onClick={() =>
-                  setSelectedIds((current) => current.filter((playerId) => playerId !== player.id))
-                }
-              >
-                <Trash2 className="size-3.5" aria-hidden="true" />
-              </button>
-            </span>
-          ))}
+      {isLoading ? <p className="text-sm font-semibold text-ink-soft">Cargando opciones…</p> : null}
+
+      {error ? (
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
+          {getUserErrorMessage(error, 'No se han podido cargar las opciones.')}
         </div>
-      )}
+      ) : null}
 
-      <button
-        type="button"
-        className="admin-action"
-        disabled={confirmationMutation.isPending}
-        onClick={() => confirmationMutation.mutate()}
-      >
-        <Save className="size-4" aria-hidden="true" />
-        {confirmationMutation.isPending ? 'Guardando…' : 'Guardar máximos goleadores'}
-      </button>
+      {payload ? (
+        <>
+          <div className="top-scorer-picker">
+            <AdminSelect
+              label="Jugador"
+              value={candidateId}
+              onChange={setCandidateId}
+              options={payload.eligiblePlayers.map((player) => ({
+                value: player.id,
+                label: `${player.name} · ${player.teamName}`,
+              }))}
+              emptyLabel="Elige goleador"
+            />
+            <button
+              type="button"
+              className="admin-icon-btn"
+              disabled={!candidateId || selectedIds.includes(candidateId)}
+              onClick={addCandidate}
+            >
+              <Plus className="size-4" aria-hidden="true" />
+              Añadir
+            </button>
+          </div>
+
+          {selectedPlayers.length === 0 ? (
+            <p className="text-sm font-semibold text-ink-soft">
+              No hay máximos goleadores confirmados.
+            </p>
+          ) : (
+            <div className="top-scorer-confirmed-list">
+              {selectedPlayers.map((player) => (
+                <span key={player.id} className="top-scorer-confirmed-pill">
+                  <span aria-hidden="true">{getFlagEmoji(player.teamFifaCode)}</span>
+                  <span className="min-w-0 truncate">{player.name}</span>
+                  <button
+                    type="button"
+                    aria-label={`Quitar a ${player.name}`}
+                    onClick={() =>
+                      setSelectedIds((current) =>
+                        current.filter((playerId) => playerId !== player.id),
+                      )
+                    }
+                  >
+                    <Trash2 className="size-3.5" aria-hidden="true" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          <button
+            type="button"
+            className="admin-action"
+            disabled={confirmationMutation.isPending}
+            onClick={() => confirmationMutation.mutate()}
+          >
+            <Save className="size-4" aria-hidden="true" />
+            {confirmationMutation.isPending ? 'Guardando…' : 'Guardar máximos goleadores'}
+          </button>
+        </>
+      ) : null}
     </section>
   )
 }
 
-function MatchCard({ match, payload }: { match: Match; payload: MatchesPayload }) {
+function MatchCard({ match, isAdmin }: { match: Match; isAdmin: boolean }) {
   return (
     <article className={`match-card ${match.hasCurrentParticipantStake ? 'is-mine' : ''}`}>
       <header className="match-card-head">
@@ -391,7 +494,7 @@ function MatchCard({ match, payload }: { match: Match; payload: MatchesPayload }
         )}
       </section>
 
-      {payload.session.isAdmin ? <AdminMatchEditor match={match} payload={payload} /> : null}
+      {isAdmin ? <AdminMatchEditor match={match} /> : null}
     </article>
   )
 }
@@ -436,15 +539,17 @@ function ResultBlock({ match }: { match: Match }) {
   )
 }
 
-function AdminMatchEditor({ match, payload }: { match: Match; payload: MatchesPayload }) {
+function AdminMatchEditor({ match }: { match: Match }) {
   const queryClient = useQueryClient()
-  const resolvedTeamIds = useMemo(
-    () => [match.home.team?.id ?? null, match.away.team?.id ?? null].filter(isString),
-    [match.away.team?.id, match.home.team?.id],
-  )
-  const playerOptions = payload.eligiblePlayers.filter(
-    (player) => player.teamId !== null && resolvedTeamIds.includes(player.teamId),
-  )
+  const [isOpen, setIsOpen] = useState(false)
+  const adminQuery = useQuery({
+    ...matchAdminQueryOptions(match.id),
+    enabled: isOpen,
+  })
+  const adminPayload =
+    adminQuery.data === null || adminQuery.data === undefined
+      ? null
+      : requireLoadedMatchAdmin(adminQuery.data)
   const [homeTeamId, setHomeTeamId] = useState(match.home.team?.id ?? '')
   const [awayTeamId, setAwayTeamId] = useState(match.away.team?.id ?? '')
   const [homeGoals, setHomeGoals] = useState(match.result?.homeGoals.toString() ?? '')
@@ -453,6 +558,13 @@ function AdminMatchEditor({ match, payload }: { match: Match; payload: MatchesPa
     match.result?.penaltyShootoutWinnerTeamId ?? '',
   )
   const [goalDrafts, setGoalDrafts] = useState<GoalDraft[]>(() => toGoalDrafts(match))
+  const resolvedTeamIds = useMemo(
+    () => [homeTeamId || null, awayTeamId || null].filter(isString),
+    [awayTeamId, homeTeamId],
+  )
+  const playerOptions = (adminPayload?.eligiblePlayers ?? []).filter(
+    (player) => player.teamId !== null && resolvedTeamIds.includes(player.teamId),
+  )
 
   useEffect(() => {
     setHomeTeamId(match.home.team?.id ?? '')
@@ -466,6 +578,8 @@ function AdminMatchEditor({ match, payload }: { match: Match; payload: MatchesPa
   const onMutationSuccess = async (successMessage: string) => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['matches'] }),
+      queryClient.invalidateQueries({ queryKey: ['goalscorers'] }),
+      queryClient.invalidateQueries({ queryKey: ['matches', 'admin'] }),
       queryClient.invalidateQueries({ queryKey: overviewQueryKey }),
     ])
     toast.success(successMessage, {
@@ -545,7 +659,11 @@ function AdminMatchEditor({ match, payload }: { match: Match; payload: MatchesPa
   }
 
   return (
-    <details className="match-admin">
+    <details
+      className="match-admin"
+      open={isOpen}
+      onToggle={(event) => setIsOpen(event.currentTarget.open)}
+    >
       <summary>
         <span>
           <ShieldCheck className="size-4" aria-hidden="true" />
@@ -555,184 +673,202 @@ function AdminMatchEditor({ match, payload }: { match: Match; payload: MatchesPa
       </summary>
 
       <div className="match-admin-body">
-        {match.completeness ? (
-          <div className="admin-warning">
-            <AlertTriangle className="size-4" aria-hidden="true" />
-            {match.completeness.missingGoals > 0
-              ? `Faltan goleadores: ${match.completeness.recordedGoals}/${match.completeness.expectedGoals} registrados`
-              : `Sobran goleadores: ${match.completeness.recordedGoals}/${match.completeness.expectedGoals} registrados`}
+        {adminQuery.isLoading ? (
+          <p className="text-sm font-semibold text-ink-soft">Cargando opciones…</p>
+        ) : null}
+
+        {adminQuery.error ? (
+          <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
+            {getUserErrorMessage(adminQuery.error, 'No se han podido cargar las opciones.')}
           </div>
         ) : null}
 
-        <section className="admin-block">
-          <p className="match-section-title">Selecciones</p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <AdminSelect
-              label={`Local · ${match.home.placeholder}`}
-              value={homeTeamId}
-              onChange={setHomeTeamId}
-              options={payload.teams.map((team) => ({ value: team.id, label: team.name }))}
-              emptyLabel="Sin resolver"
-            />
-            <AdminSelect
-              label={`Visitante · ${match.away.placeholder}`}
-              value={awayTeamId}
-              onChange={setAwayTeamId}
-              options={payload.teams.map((team) => ({ value: team.id, label: team.name }))}
-              emptyLabel="Sin resolver"
-            />
-          </div>
-          <button
-            type="button"
-            className="admin-action"
-            disabled={teamsMutation.isPending}
-            onClick={() => teamsMutation.mutate()}
-          >
-            <Save className="size-4" aria-hidden="true" />
-            {teamsMutation.isPending ? 'Guardando…' : 'Guardar selecciones'}
-          </button>
-        </section>
+        {adminPayload ? (
+          <>
+            {adminPayload.completeness ? (
+              <div className="admin-warning">
+                <AlertTriangle className="size-4" aria-hidden="true" />
+                {adminPayload.completeness.missingGoals > 0
+                  ? `Faltan goleadores: ${adminPayload.completeness.recordedGoals}/${adminPayload.completeness.expectedGoals} registrados`
+                  : `Sobran goleadores: ${adminPayload.completeness.recordedGoals}/${adminPayload.completeness.expectedGoals} registrados`}
+              </div>
+            ) : null}
 
-        <section className="admin-block">
-          <p className="match-section-title">Resultado</p>
-          <div className="grid grid-cols-[1fr_1fr] gap-2">
-            <AdminInput
-              label={match.home.team?.name ?? 'Local'}
-              value={homeGoals}
-              onChange={setHomeGoals}
-              type="number"
-              min="0"
-              inputMode="numeric"
-            />
-            <AdminInput
-              label={match.away.team?.name ?? 'Visitante'}
-              value={awayGoals}
-              onChange={setAwayGoals}
-              type="number"
-              min="0"
-              inputMode="numeric"
-            />
-          </div>
-          <AdminSelect
-            label="Ganador por penaltis"
-            value={penaltyWinnerTeamId}
-            onChange={setPenaltyWinnerTeamId}
-            options={resolvedTeamIds.map((teamId) => ({
-              value: teamId,
-              label: payload.teams.find((team) => team.id === teamId)?.name ?? 'Selección',
-            }))}
-            emptyLabel="Sin tanda"
-          />
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className="admin-action"
-              disabled={resultMutation.isPending}
-              onClick={() => resultMutation.mutate()}
-            >
-              <Save className="size-4" aria-hidden="true" />
-              {resultMutation.isPending ? 'Guardando…' : 'Guardar resultado'}
-            </button>
-            <button
-              type="button"
-              className="admin-action is-muted"
-              disabled={clearResultMutation.isPending}
-              onClick={() => clearResultMutation.mutate()}
-            >
-              Borrar resultado
-            </button>
-          </div>
-        </section>
+            <section className="admin-block">
+              <p className="match-section-title">Selecciones</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <AdminSelect
+                  label={`Local · ${match.home.placeholder}`}
+                  value={homeTeamId}
+                  onChange={setHomeTeamId}
+                  options={adminPayload.teams.map((team) => ({ value: team.id, label: team.name }))}
+                  emptyLabel="Sin resolver"
+                />
+                <AdminSelect
+                  label={`Visitante · ${match.away.placeholder}`}
+                  value={awayTeamId}
+                  onChange={setAwayTeamId}
+                  options={adminPayload.teams.map((team) => ({ value: team.id, label: team.name }))}
+                  emptyLabel="Sin resolver"
+                />
+              </div>
+              <button
+                type="button"
+                className="admin-action"
+                disabled={teamsMutation.isPending}
+                onClick={() => teamsMutation.mutate()}
+              >
+                <Save className="size-4" aria-hidden="true" />
+                {teamsMutation.isPending ? 'Guardando…' : 'Guardar selecciones'}
+              </button>
+            </section>
 
-        <section className="admin-block">
-          <div className="flex items-center justify-between gap-2">
-            <p className="match-section-title">Goleadores</p>
-            <button
-              type="button"
-              className="admin-icon-btn"
-              disabled={!canAddGoal}
-              onClick={addGoal}
-            >
-              <Plus className="size-4" aria-hidden="true" />
-              Añadir
-            </button>
-          </div>
+            <section className="admin-block">
+              <p className="match-section-title">Resultado</p>
+              <div className="grid grid-cols-[1fr_1fr] gap-2">
+                <AdminInput
+                  label={match.home.team?.name ?? 'Local'}
+                  value={homeGoals}
+                  onChange={setHomeGoals}
+                  type="number"
+                  min="0"
+                  inputMode="numeric"
+                />
+                <AdminInput
+                  label={match.away.team?.name ?? 'Visitante'}
+                  value={awayGoals}
+                  onChange={setAwayGoals}
+                  type="number"
+                  min="0"
+                  inputMode="numeric"
+                />
+              </div>
+              <AdminSelect
+                label="Ganador por penaltis"
+                value={penaltyWinnerTeamId}
+                onChange={setPenaltyWinnerTeamId}
+                options={resolvedTeamIds.map((teamId) => ({
+                  value: teamId,
+                  label: adminPayload.teams.find((team) => team.id === teamId)?.name ?? 'Selección',
+                }))}
+                emptyLabel="Sin tanda"
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="admin-action"
+                  disabled={resultMutation.isPending}
+                  onClick={() => resultMutation.mutate()}
+                >
+                  <Save className="size-4" aria-hidden="true" />
+                  {resultMutation.isPending ? 'Guardando…' : 'Guardar resultado'}
+                </button>
+                <button
+                  type="button"
+                  className="admin-action is-muted"
+                  disabled={clearResultMutation.isPending}
+                  onClick={() => clearResultMutation.mutate()}
+                >
+                  Borrar resultado
+                </button>
+              </div>
+            </section>
 
-          {goalDrafts.length === 0 ? (
-            <p className="text-sm font-semibold text-ink-soft">Todavía no hay goleadores.</p>
-          ) : (
-            <div className="space-y-2">
-              {goalDrafts.map((goal, index) => (
-                <div key={goal.id} className="goal-edit-row">
-                  <AdminInput
-                    label="Min."
-                    value={goal.minuteLabel}
-                    onChange={(value) =>
-                      updateGoalDraft(setGoalDrafts, index, { minuteLabel: value })
-                    }
-                    placeholder="45+2"
-                  />
-                  <AdminSelect
-                    label="Marca"
-                    value={goal.scoringTeamId}
-                    onChange={(value) =>
-                      updateGoalDraft(setGoalDrafts, index, { scoringTeamId: value })
-                    }
-                    options={resolvedTeamIds.map((teamId) => ({
-                      value: teamId,
-                      label: payload.teams.find((team) => team.id === teamId)?.name ?? 'Selección',
-                    }))}
-                    emptyLabel="Selección"
-                  />
-                  <AdminSelect
-                    label="Jugador"
-                    value={goal.creditedPlayerId}
-                    onChange={(value) =>
-                      updateGoalDraft(setGoalDrafts, index, { creditedPlayerId: value })
-                    }
-                    options={playerOptions.map((player) => ({
-                      value: player.id,
-                      label: `${player.name} · ${player.teamName}`,
-                    }))}
-                    emptyLabel="Goleador"
-                  />
-                  <label className="own-goal-toggle">
-                    <input
-                      type="checkbox"
-                      checked={goal.isOwnGoal}
-                      onChange={(event) =>
-                        updateGoalDraft(setGoalDrafts, index, { isOwnGoal: event.target.checked })
-                      }
-                    />
-                    p.p.
-                  </label>
-                  <button
-                    type="button"
-                    className="admin-icon-btn is-danger"
-                    aria-label="Quitar goleador"
-                    onClick={() =>
-                      setGoalDrafts((current) =>
-                        current.filter((_, rowIndex) => rowIndex !== index),
-                      )
-                    }
-                  >
-                    <Trash2 className="size-4" aria-hidden="true" />
-                  </button>
+            <section className="admin-block">
+              <div className="flex items-center justify-between gap-2">
+                <p className="match-section-title">Goleadores</p>
+                <button
+                  type="button"
+                  className="admin-icon-btn"
+                  disabled={!canAddGoal}
+                  onClick={addGoal}
+                >
+                  <Plus className="size-4" aria-hidden="true" />
+                  Añadir
+                </button>
+              </div>
+
+              {goalDrafts.length === 0 ? (
+                <p className="text-sm font-semibold text-ink-soft">Todavía no hay goleadores.</p>
+              ) : (
+                <div className="space-y-2">
+                  {goalDrafts.map((goal, index) => (
+                    <div key={goal.id} className="goal-edit-row">
+                      <AdminInput
+                        label="Min."
+                        value={goal.minuteLabel}
+                        onChange={(value) =>
+                          updateGoalDraft(setGoalDrafts, index, { minuteLabel: value })
+                        }
+                        placeholder="45+2"
+                      />
+                      <AdminSelect
+                        label="Marca"
+                        value={goal.scoringTeamId}
+                        onChange={(value) =>
+                          updateGoalDraft(setGoalDrafts, index, { scoringTeamId: value })
+                        }
+                        options={resolvedTeamIds.map((teamId) => ({
+                          value: teamId,
+                          label:
+                            adminPayload.teams.find((team) => team.id === teamId)?.name ??
+                            'Selección',
+                        }))}
+                        emptyLabel="Selección"
+                      />
+                      <AdminSelect
+                        label="Jugador"
+                        value={goal.creditedPlayerId}
+                        onChange={(value) =>
+                          updateGoalDraft(setGoalDrafts, index, { creditedPlayerId: value })
+                        }
+                        options={playerOptions.map((player) => ({
+                          value: player.id,
+                          label: `${player.name} · ${player.teamName}`,
+                        }))}
+                        emptyLabel="Goleador"
+                      />
+                      <label className="own-goal-toggle">
+                        <input
+                          type="checkbox"
+                          checked={goal.isOwnGoal}
+                          onChange={(event) =>
+                            updateGoalDraft(setGoalDrafts, index, {
+                              isOwnGoal: event.target.checked,
+                            })
+                          }
+                        />
+                        p.p.
+                      </label>
+                      <button
+                        type="button"
+                        className="admin-icon-btn is-danger"
+                        aria-label="Quitar goleador"
+                        onClick={() =>
+                          setGoalDrafts((current) =>
+                            current.filter((_, rowIndex) => rowIndex !== index),
+                          )
+                        }
+                      >
+                        <Trash2 className="size-4" aria-hidden="true" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
+              )}
 
-          <button
-            type="button"
-            className="admin-action"
-            disabled={goalsMutation.isPending}
-            onClick={() => goalsMutation.mutate()}
-          >
-            <Save className="size-4" aria-hidden="true" />
-            {goalsMutation.isPending ? 'Guardando…' : 'Guardar goleadores'}
-          </button>
-        </section>
+              <button
+                type="button"
+                className="admin-action"
+                disabled={goalsMutation.isPending}
+                onClick={() => goalsMutation.mutate()}
+              >
+                <Save className="size-4" aria-hidden="true" />
+                {goalsMutation.isPending ? 'Guardando…' : 'Guardar goleadores'}
+              </button>
+            </section>
+          </>
+        ) : null}
       </div>
     </details>
   )
@@ -804,7 +940,7 @@ function updateGoalDraft(
   )
 }
 
-function getGoalscorerRank(leaders: MatchesPayload['goalscorerLeaderboard'], index: number) {
+function getGoalscorerRank(leaders: GoalscorersPayload['goalscorerLeaderboard'], index: number) {
   const leader = leaders[index]
 
   if (leader === undefined) {

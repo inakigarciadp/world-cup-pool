@@ -80,19 +80,10 @@ export type MatchesPayload = {
     isAdmin: boolean
   }
   tournamentStarted: boolean
-  teams: Array<{
-    id: string
-    name: string
-    fifaCode: string
-    groupCode: string
-  }>
-  eligiblePlayers: Array<{
-    id: string
-    name: string
-    teamId: string | null
-    teamName: string
-    teamFifaCode: string
-  }>
+  matches: Match[]
+}
+
+export type GoalscorersPayload = {
   goalscorerLeaderboard: Array<{
     playerId: string
     playerName: string
@@ -102,6 +93,21 @@ export type MatchesPayload = {
     goals: number
     isConfirmedTopScorer: boolean
   }>
+}
+
+export type MatchAdminPayload = {
+  teams: TeamOption[]
+  eligiblePlayers: EligiblePlayerOption[]
+  completeness: {
+    expectedGoals: number
+    recordedGoals: number
+    missingGoals: number
+    extraGoals: number
+  } | null
+}
+
+export type GoalscorersAdminPayload = {
+  eligiblePlayers: EligiblePlayerOption[]
   topScorerConfirmations: Array<{
     eligiblePlayerId: string
     playerName: string
@@ -110,7 +116,6 @@ export type MatchesPayload = {
     teamFifaCode: string
     confirmedAt: number
   }>
-  matches: Match[]
 }
 
 export type Match = {
@@ -141,12 +146,6 @@ export type Match = {
     minuteLabel: string | null
     sortOrder: number
   }>
-  completeness: {
-    expectedGoals: number
-    recordedGoals: number
-    missingGoals: number
-    extraGoals: number
-  } | null
   hasCurrentParticipantStake: boolean
   stakes: Array<{
     participantId: string
@@ -170,14 +169,24 @@ export type Match = {
   }>
 }
 
+export type TeamOption = {
+  id: string
+  name: string
+  fifaCode: string
+  groupCode: string
+}
+
+export type EligiblePlayerOption = {
+  id: string
+  name: string
+  teamId: string | null
+  teamName: string
+  teamFifaCode: string
+}
+
 export type MatchSide = {
   placeholder: string
-  team: {
-    id: string
-    name: string
-    fifaCode: string
-    groupCode: string
-  } | null
+  team: TeamOption | null
 }
 
 export async function login(loginName: string, pin: string) {
@@ -209,6 +218,36 @@ export async function getMatches(includePast: boolean) {
   }
 
   return (await parseJsonResponse(response)) as MatchesPayload
+}
+
+export async function getGoalscorers() {
+  const response = await fetchWithRefreshRetry('/api/goalscorers')
+
+  if (response.status === 401) {
+    return null
+  }
+
+  return (await parseJsonResponse(response)) as GoalscorersPayload
+}
+
+export async function getMatchAdmin(matchId: string) {
+  const response = await fetchWithRefreshRetry(`/api/matches/admin?matchId=${matchId}`)
+
+  if (response.status === 401) {
+    return null
+  }
+
+  return (await parseJsonResponse(response)) as MatchAdminPayload
+}
+
+export async function getGoalscorersAdmin() {
+  const response = await fetchWithRefreshRetry('/api/goalscorers/admin')
+
+  if (response.status === 401) {
+    return null
+  }
+
+  return (await parseJsonResponse(response)) as GoalscorersAdminPayload
 }
 
 export async function saveEntry(
