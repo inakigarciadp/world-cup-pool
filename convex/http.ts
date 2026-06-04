@@ -307,7 +307,6 @@ http.route({
       const admin = await ctx.runQuery(internal.matches.getMatchAdminForHttp, {
         poolId: payload.poolId as Id<'pools'>,
         participantId: payload.participantId as Id<'participants'>,
-        matchId: String(url.searchParams.get('matchId') ?? '') as Id<'matches'>,
         slug: url.searchParams.get('slug') ?? undefined,
       })
 

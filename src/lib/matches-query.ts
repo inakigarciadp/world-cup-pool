@@ -3,17 +3,17 @@ import { queryOptions } from '@tanstack/react-query'
 import {
   getGoalscorers,
   getGoalscorersAdmin,
-  getMatchAdmin,
+  getMatchesAdmin,
   getMatches,
   type GoalscorersAdminPayload,
   type GoalscorersPayload,
-  type MatchAdminPayload,
+  type MatchesAdminPayload,
   type MatchesPayload,
 } from '@/lib/httpApi'
 
 export const matchesQueryKey = (includePast: boolean) => ['matches', { includePast }] as const
 export const goalscorersQueryKey = ['goalscorers'] as const
-export const matchAdminQueryKey = (matchId: string) => ['matches', 'admin', { matchId }] as const
+export const matchesAdminQueryKey = ['matches', 'admin'] as const
 export const goalscorersAdminQueryKey = ['goalscorers', 'admin'] as const
 
 export function matchesQueryOptions(includePast: boolean) {
@@ -28,12 +28,10 @@ export const goalscorersQueryOptions = queryOptions({
   queryFn: getGoalscorers,
 })
 
-export function matchAdminQueryOptions(matchId: string) {
-  return queryOptions({
-    queryKey: matchAdminQueryKey(matchId),
-    queryFn: () => getMatchAdmin(matchId),
-  })
-}
+export const matchesAdminQueryOptions = queryOptions({
+  queryKey: matchesAdminQueryKey,
+  queryFn: getMatchesAdmin,
+})
 
 export const goalscorersAdminQueryOptions = queryOptions({
   queryKey: goalscorersAdminQueryKey,
@@ -56,7 +54,7 @@ export function requireLoadedGoalscorers(goalscorers: GoalscorersPayload | null 
   return goalscorers
 }
 
-export function requireLoadedMatchAdmin(admin: MatchAdminPayload | null | undefined) {
+export function requireLoadedMatchesAdmin(admin: MatchesAdminPayload | null | undefined) {
   if (admin === null || admin === undefined) {
     throw new Error('No se han podido cargar las opciones de edición.')
   }
