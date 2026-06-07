@@ -84,7 +84,9 @@ export function LeaderboardPage() {
         <div className="sticker-soft px-5 py-8 text-center">
           <p className="heading text-lg">Aún no hay apuestas</p>
           <p className="mt-1 text-sm text-ink-soft">
-            Sé el primero en elegir tus 7 selecciones y 4 goleadores.
+            Sé el primero en elegir tus{' '}
+            {overview.teamTiers.reduce((total, tier) => total + tier.requiredPicks, 0)} selecciones
+            y {overview.teamTiers.length} goleadores.
           </p>
         </div>
       ) : null}

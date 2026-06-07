@@ -34,6 +34,8 @@ export function RulesPage() {
     tier.name,
     formatMultiplier(tier.multiplier),
   ])
+  const totalTeamPicks = overview.teamTiers.reduce((total, tier) => total + tier.requiredPicks, 0)
+  const totalGoalscorerPicks = overview.teamTiers.length
 
   return (
     <section className="space-y-6">
@@ -41,8 +43,9 @@ export function RulesPage() {
         <p className="eyebrow opacity-80">Cómo se juega</p>
         <h1>Una porra para sufrir cada jornada.</h1>
         <p>
-          Antes de que cierre la entrada, eliges 7 selecciones y 4 goleadores. A partir de ahí, cada
-          partido suma, cada ronda pesa y los bombos modestos pueden cambiar la clasificación.
+          Antes de que cierre la entrada, eliges {totalTeamPicks} selecciones y{' '}
+          {totalGoalscorerPicks} goleadores. A partir de ahí, cada partido suma, cada ronda pesa y
+          los bombos modestos pueden cambiar la clasificación.
         </p>
       </header>
 
@@ -124,7 +127,7 @@ export function RulesPage() {
           <h3>El pichichi tiene premio</h3>
           <p>
             Los goleadores suman durante todo el torneo, aunque su selección no sea una de tus
-            siete. Cada gol se multiplica por el bombo del jugador.
+            selecciones. Cada gol se multiplica por el bombo del jugador.
           </p>
           <div className="rule-list">
             {goalscorerPoints.map(([label, value]) => (
