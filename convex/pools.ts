@@ -91,7 +91,7 @@ const teamSeed = [
 ]
 
 const tierSeed = [
-  { name: 'Bombo 1', requiredPicks: 1, multiplier: 1, sortOrder: 1 },
+  { name: 'Bombo 1', requiredPicks: 2, multiplier: 1, sortOrder: 1 },
   { name: 'Bombo 2', requiredPicks: 2, multiplier: 1.25, sortOrder: 2 },
   { name: 'Bombo 3', requiredPicks: 2, multiplier: 1.5, sortOrder: 3 },
   { name: 'Bombo 4', requiredPicks: 2, multiplier: 1.75, sortOrder: 4 },

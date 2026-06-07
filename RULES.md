@@ -6,7 +6,7 @@ These rules define how points are earned in the World Cup Pool.
 
 Each Participant submits one Entry before the Entry Lock. An Entry contains:
 
-- 1 Team Pick from Team Tier 1.
+- 2 Team Picks from Team Tier 1.
 - 2 Team Picks from Team Tier 2.
 - 2 Team Picks from Team Tier 3.
 - 2 Team Picks from Team Tier 4.

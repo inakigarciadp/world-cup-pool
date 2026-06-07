@@ -159,7 +159,7 @@ Dev: "Who fixes a typo in a locked Entry?"
 Domain expert: "The Admin can correct it, but Participants cannot edit locked Entries themselves."
 
 Dev: "How many teams does an Entry choose?"
-Domain expert: "For the 2026 Pool, an Entry chooses 1 Team Pick from Bombo 1, 2 from Bombo 2, 2 from Bombo 3, and 2 from Bombo 4."
+Domain expert: "For the 2026 Pool, an Entry chooses 2 Team Picks from each Bombo: 1, 2, 3, and 4."
 
 Dev: "Is Bombo 1 the same thing as Group A?"
 Domain expert: "No. A Team Tier controls selection rules for the Pool, while a Tournament Group is an official World Cup group."
