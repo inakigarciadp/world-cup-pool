@@ -863,7 +863,6 @@ export const upsertParticipantsFromCsv = mutation({
         inserted += 1
       } else {
         await ctx.db.patch(participant._id, {
-          displayName,
           pinHash: user.pinHash,
           isAdmin: user.isAdmin,
         })
