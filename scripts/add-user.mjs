@@ -8,14 +8,13 @@ const PASSWORD_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0
 const PASSWORD_LENGTH = 25
 
 const args = process.argv.slice(2)
-const username = args
-  .find((arg) => !arg.startsWith('--'))
-  ?.trim()
-  .toLowerCase()
+const positionalArgs = args.filter((arg) => !arg.startsWith('--'))
+const username = positionalArgs[0]?.trim().toLowerCase()
+const displayName = positionalArgs[1]?.trim() || username
 const isAdmin = args.includes('--admin')
 
 if (!username) {
-  console.error('Usage: pnpm users:add <username> [--admin]')
+  console.error('Usage: pnpm users:add <username> [displayName] [--admin]')
   process.exit(1)
 }
 
@@ -36,7 +35,7 @@ if (rows.some((row) => row.username === username)) {
 const pin = generatePassword()
 rows.push({
   username,
-  displayName: username,
+  displayName,
   pin,
   isAdmin: String(isAdmin),
 })
