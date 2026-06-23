@@ -13,7 +13,7 @@ import {
 
 export const matchesQueryKey = (includePast: boolean) => ['matches', { includePast }] as const
 export const goalscorersQueryKey = ['goalscorers'] as const
-export const matchesAdminQueryKey = ['matches', 'admin'] as const
+export const matchesAdminQueryKey = (matchId: string) => ['matches', 'admin', matchId] as const
 export const goalscorersAdminQueryKey = ['goalscorers', 'admin'] as const
 
 export function matchesQueryOptions(includePast: boolean) {
@@ -28,10 +28,12 @@ export const goalscorersQueryOptions = queryOptions({
   queryFn: getGoalscorers,
 })
 
-export const matchesAdminQueryOptions = queryOptions({
-  queryKey: matchesAdminQueryKey,
-  queryFn: getMatchesAdmin,
-})
+export function matchesAdminQueryOptions(matchId: string) {
+  return queryOptions({
+    queryKey: matchesAdminQueryKey(matchId),
+    queryFn: () => getMatchesAdmin(matchId),
+  })
+}
 
 export const goalscorersAdminQueryOptions = queryOptions({
   queryKey: goalscorersAdminQueryKey,

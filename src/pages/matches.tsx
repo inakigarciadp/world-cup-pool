@@ -30,7 +30,6 @@ import {
   type GoalscorersAdminPayload,
   type GoalscorersPayload,
   type Match,
-  type MatchesAdminPayload,
 } from '@/lib/httpApi'
 import {
   goalscorersAdminQueryOptions,
@@ -41,6 +40,7 @@ import {
   requireLoadedGoalscorersAdmin,
   requireLoadedMatchesAdmin,
   requireLoadedMatches,
+  matchesAdminQueryKey,
 } from '@/lib/matches-query'
 import { overviewQueryKey } from '@/lib/overview-query'
 import { useOverview } from '@/lib/overview-context'
@@ -60,7 +60,6 @@ export function MatchesPage() {
   const [includePast, setIncludePast] = useState(false)
   const [showOnlyMine, setShowOnlyMine] = useState(false)
   const [activeTab, setActiveTab] = useState('partidos')
-  const [shouldLoadMatchesAdmin, setShouldLoadMatchesAdmin] = useState(false)
   const queryClient = useQueryClient()
   const { data, isLoading, error } = useQuery(matchesQueryOptions(includePast))
   const goalscorersQuery = useQuery({
@@ -69,10 +68,6 @@ export function MatchesPage() {
   })
   const payload = data === null || data === undefined ? null : requireLoadedMatches(data)
   const isAdmin = overview.session.isAdmin
-  const matchesAdminQuery = useQuery({
-    ...matchesAdminQueryOptions,
-    enabled: isAdmin && shouldLoadMatchesAdmin,
-  })
   const goalscorersAdminQuery = useQuery({
     ...goalscorersAdminQueryOptions,
     enabled: isAdmin && activeTab === 'goleadores',
@@ -85,10 +80,6 @@ export function MatchesPage() {
     goalscorersAdminQuery.data === null || goalscorersAdminQuery.data === undefined
       ? null
       : requireLoadedGoalscorersAdmin(goalscorersAdminQuery.data)
-  const matchesAdmin =
-    matchesAdminQuery.data === null || matchesAdminQuery.data === undefined
-      ? null
-      : requireLoadedMatchesAdmin(matchesAdminQuery.data)
   const visibleMatches =
     payload === null
       ? []
@@ -97,19 +88,13 @@ export function MatchesPage() {
         : payload.matches
 
   useEffect(() => {
-    if (payload === null) {
-      setShouldLoadMatchesAdmin(false)
-      return
-    }
+    if (payload === null) return
 
     const frame = window.requestAnimationFrame(() => {
       void queryClient.prefetchQuery(goalscorersQueryOptions)
 
       if (isAdmin) {
         void queryClient.prefetchQuery(goalscorersAdminQueryOptions)
-        setShouldLoadMatchesAdmin(true)
-      } else {
-        setShouldLoadMatchesAdmin(false)
       }
     })
 
@@ -195,9 +180,6 @@ export function MatchesPage() {
                   key={match.id}
                   match={match}
                   isAdmin={isAdmin}
-                  adminPayload={matchesAdmin}
-                  adminIsLoading={matchesAdminQuery.isLoading}
-                  adminError={matchesAdminQuery.error}
                 />
               ))}
             </div>
@@ -443,15 +425,9 @@ function AdminTopScorerEditor({
 function MatchCard({
   match,
   isAdmin,
-  adminPayload,
-  adminIsLoading,
-  adminError,
 }: {
   match: Match
   isAdmin: boolean
-  adminPayload: MatchesAdminPayload | null
-  adminIsLoading: boolean
-  adminError: Error | null
 }) {
   return (
     <article className={`match-card ${match.hasCurrentParticipantStake ? 'is-mine' : ''}`}>
@@ -532,9 +508,6 @@ function MatchCard({
       {isAdmin ? (
         <AdminMatchEditor
           match={match}
-          adminPayload={adminPayload}
-          isLoading={adminIsLoading}
-          error={adminError}
         />
       ) : null}
     </article>
@@ -583,19 +556,21 @@ function ResultBlock({ match }: { match: Match }) {
 
 function AdminMatchEditor({
   match,
-  adminPayload,
-  isLoading,
-  error,
 }: {
   match: Match
-  adminPayload: MatchesAdminPayload | null
-  isLoading: boolean
-  error: Error | null
 }) {
   const queryClient = useQueryClient()
   const [isOpen, setIsOpen] = useState(false)
+  const adminQuery = useQuery({
+    ...matchesAdminQueryOptions(match.id),
+    enabled: isOpen,
+  })
+  const adminPayload =
+    adminQuery.data === null || adminQuery.data === undefined
+      ? null
+      : requireLoadedMatchesAdmin(adminQuery.data)
   const matchAdmin = adminPayload?.matches.find((adminMatch) => adminMatch.matchId === match.id)
-  const isAdminLoading = isOpen && (isLoading || adminPayload === null)
+  const isAdminLoading = isOpen && (adminQuery.isLoading || adminPayload === null)
   const [homeTeamId, setHomeTeamId] = useState(match.home.team?.id ?? '')
   const [awayTeamId, setAwayTeamId] = useState(match.away.team?.id ?? '')
   const [homeGoals, setHomeGoals] = useState(match.result?.homeGoals.toString() ?? '')
@@ -625,7 +600,7 @@ function AdminMatchEditor({
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['matches'] }),
       queryClient.invalidateQueries({ queryKey: ['goalscorers'] }),
-      queryClient.invalidateQueries({ queryKey: ['matches', 'admin'] }),
+      queryClient.invalidateQueries({ queryKey: matchesAdminQueryKey(match.id) }),
       queryClient.invalidateQueries({ queryKey: overviewQueryKey }),
     ])
     toast.success(successMessage, {
@@ -723,9 +698,9 @@ function AdminMatchEditor({
           <p className="text-sm font-semibold text-ink-soft">Cargando opciones…</p>
         ) : null}
 
-        {error ? (
+        {adminQuery.error ? (
           <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
-            {getUserErrorMessage(error, 'No se han podido cargar las opciones.')}
+            {getUserErrorMessage(adminQuery.error, 'No se han podido cargar las opciones.')}
           </div>
         ) : null}
 

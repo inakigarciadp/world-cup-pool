@@ -233,8 +233,10 @@ export async function getGoalscorers() {
   return (await parseJsonResponse(response)) as GoalscorersPayload
 }
 
-export async function getMatchesAdmin() {
-  const response = await fetchWithRefreshRetry('/api/matches/admin')
+export async function getMatchesAdmin(matchId: string) {
+  const response = await fetchWithRefreshRetry(
+    `/api/matches/admin?matchId=${encodeURIComponent(matchId)}`,
+  )
 
   if (response.status === 401) {
     return null
