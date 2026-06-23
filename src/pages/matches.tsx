@@ -61,7 +61,6 @@ export function MatchesPage() {
   const [includePast, setIncludePast] = useState(false)
   const [showOnlyMine, setShowOnlyMine] = useState(false)
   const [activeTab, setActiveTab] = useState('partidos')
-  const queryClient = useQueryClient()
   const { data, isLoading, error } = useQuery(matchesQueryOptions(includePast))
   const goalscorersQuery = useQuery({
     ...goalscorersQueryOptions,
@@ -87,20 +86,6 @@ export function MatchesPage() {
       : showOnlyMine
         ? payload.matches.filter((match) => match.hasCurrentParticipantStake)
         : payload.matches
-
-  useEffect(() => {
-    if (payload === null) return
-
-    const frame = window.requestAnimationFrame(() => {
-      void queryClient.prefetchQuery(goalscorersQueryOptions)
-
-      if (isAdmin) {
-        void queryClient.prefetchQuery(goalscorersAdminQueryOptions)
-      }
-    })
-
-    return () => window.cancelAnimationFrame(frame)
-  }, [isAdmin, payload, queryClient])
 
   return (
     <section className="space-y-5">

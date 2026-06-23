@@ -134,14 +134,26 @@ export const getMatchesForHttp = internalQuery({
       .query('entryGoalscorerPicks')
       .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
       .take(500)
-    const results = await ctx.db
-      .query('matchResults')
-      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(200)
-    const goals = await ctx.db
-      .query('matchGoals')
-      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(2000)
+    const results = (
+      await Promise.all(
+        matches.map((match) =>
+          ctx.db
+            .query('matchResults')
+            .withIndex('by_matchId', (q) => q.eq('matchId', match._id))
+            .unique(),
+        ),
+      )
+    ).filter(isPresent)
+    const goals = (
+      await Promise.all(
+        matches.map((match) =>
+          ctx.db
+            .query('matchGoals')
+            .withIndex('by_matchId_and_sortOrder', (q) => q.eq('matchId', match._id))
+            .take(MAX_GOALS_PER_MATCH),
+        ),
+      )
+    ).flat()
 
     const tiersById = new Map(tiers.map((tier) => [tier._id, tier]))
     const teamsById = new Map(teams.map((team) => [team._id, team]))
