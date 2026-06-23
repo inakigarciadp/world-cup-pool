@@ -3,6 +3,8 @@ import { formatUserErrorMessage } from '@/lib/user-error'
 const API_URL = getConvexSiteUrl()
 let refreshPromise: Promise<boolean> | null = null
 
+export type PoolStatus = 'setup' | 'open' | 'locked' | 'scoring'
+
 export type Overview = {
   session: {
     participantId: string
@@ -13,57 +15,27 @@ export type Overview = {
     name: string
     slug: string
     entryLockAt: number
-    status: 'setup' | 'open' | 'locked' | 'scoring'
+    status: PoolStatus
   }
-  counts: {
-    participants: number
-    teamTiers: number
-    teams: number
-    eligiblePlayers: number
-    entries: number
+}
+
+export type RulesPayload = {
+  teamTiers: TeamTierSummary[]
+}
+
+export type LeaderboardPayload = {
+  teamTiers: TeamTierSummary[]
+  leaderboard: LeaderboardEntry[]
+}
+
+export type EntriesPayload = {
+  pool: {
+    entryLockAt: number
+    status: PoolStatus
   }
-  teamTiers: Array<{
-    id: string
-    name: string
-    requiredPicks: number
-    multiplier: number | null
-    teams: Array<{
-      id: string
-      name: string
-      fifaCode: string
-      groupCode: string
-    }>
-  }>
-  eligiblePlayers: Array<{
-    id: string
-    teamId: string | null
-    tierId: string | null
-    name: string
-    teamName: string
-    teamFifaCode: string
-    groupCode: string
-  }>
-  stageBonuses: Array<{
-    id: string
-    stage: string
-    points: number
-  }>
-  leaderboard: Array<{
-    entryId: string | null
-    participantId: string
-    participantName: string
-    goalscorerPicks: Array<{
-      tierName: string
-      playerName: string
-      teamName: string
-    }>
-    teamPicks: Array<{
-      tierName: string
-      teamName: string
-    }>
-    currentScore: number
-    submittedAt: number | null
-  }>
+  teamTiers: TeamTierOption[]
+  eligiblePlayers: EntryEligiblePlayerOption[]
+  leaderboard: EntryOverview[]
   currentEntry: {
     teamPickIds: string[]
     goalscorerPickIds: Array<{
@@ -73,14 +45,40 @@ export type Overview = {
   } | null
 }
 
-export type MatchesPayload = {
-  session: {
-    participantId: string
-    participantName: string
-    isAdmin: boolean
-  }
-  tournamentStarted: boolean
-  matches: Match[]
+export type TeamTierSummary = {
+  id: string
+  name: string
+  requiredPicks: number
+  multiplier: number | null
+}
+
+export type TeamTierOption = TeamTierSummary & {
+  teams: TeamOption[]
+}
+
+export type LeaderboardEntry = {
+  entryId: string | null
+  participantId: string
+  participantName: string
+  currentScore: number
+  submittedAt: number | null
+}
+
+export type EntryOverview = LeaderboardEntry & {
+  goalscorerPicks: Array<{
+    tierName: string
+    playerName: string
+    teamName: string
+  }>
+  teamPicks: Array<{
+    tierName: string
+    teamName: string
+  }>
+}
+
+export type EntryEligiblePlayerOption = EligiblePlayerOption & {
+  tierId: string | null
+  groupCode: string
 }
 
 export type GoalscorersPayload = {
@@ -93,6 +91,16 @@ export type GoalscorersPayload = {
     goals: number
     isConfirmedTopScorer: boolean
   }>
+}
+
+export type MatchesPayload = {
+  session: {
+    participantId: string
+    participantName: string
+    isAdmin: boolean
+  }
+  tournamentStarted: boolean
+  matches: Match[]
 }
 
 export type MatchesAdminPayload = {
@@ -211,6 +219,36 @@ export async function getOverview() {
   }
 
   return (await parseJsonResponse(response)) as Overview
+}
+
+export async function getLeaderboard() {
+  const response = await fetchWithRefreshRetry('/api/leaderboard')
+
+  if (response.status === 401) {
+    return null
+  }
+
+  return (await parseJsonResponse(response)) as LeaderboardPayload
+}
+
+export async function getEntriesData() {
+  const response = await fetchWithRefreshRetry('/api/entries')
+
+  if (response.status === 401) {
+    return null
+  }
+
+  return (await parseJsonResponse(response)) as EntriesPayload
+}
+
+export async function getRulesData() {
+  const response = await fetchWithRefreshRetry('/api/rules')
+
+  if (response.status === 401) {
+    return null
+  }
+
+  return (await parseJsonResponse(response)) as RulesPayload
 }
 
 export async function getMatches(includePast: boolean) {

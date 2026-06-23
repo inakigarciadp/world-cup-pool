@@ -1,6 +1,8 @@
+import { useQuery } from '@tanstack/react-query'
 import { Crown, Flag, Goal, Medal, Trophy } from 'lucide-react'
 
-import { useOverview } from '@/lib/overview-context'
+import { requireLoadedRules, rulesQueryOptions } from '@/lib/rules-query'
+import { getUserErrorMessage } from '@/lib/user-error'
 
 const matchPoints = [
   ['Victoria en partido', '3 pts'],
@@ -25,17 +27,37 @@ const goalscorerPoints = [
 ]
 
 export function RulesPage() {
-  const { overview } = useOverview()
-  const teamRules = overview.teamTiers.map((tier) => [
+  const { data, isLoading, error } = useQuery(rulesQueryOptions)
+  const payload = data === null || data === undefined ? null : requireLoadedRules(data)
+
+  if (payload === null) {
+    return (
+      <section className="space-y-6">
+        {isLoading ? (
+          <div className="sticker-soft px-5 py-6 text-sm font-semibold text-ink-soft">
+            Cargando reglas…
+          </div>
+        ) : null}
+
+        {error ? (
+          <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
+            {getUserErrorMessage(error, 'No se han podido cargar las reglas.')}
+          </div>
+        ) : null}
+      </section>
+    )
+  }
+
+  const teamRules = payload.teamTiers.map((tier) => [
     tier.name,
     `${tier.requiredPicks} ${tier.requiredPicks === 1 ? 'selección' : 'selecciones'}`,
   ])
-  const multipliers = overview.teamTiers.map((tier) => [
+  const multipliers = payload.teamTiers.map((tier) => [
     tier.name,
     formatMultiplier(tier.multiplier),
   ])
-  const totalTeamPicks = overview.teamTiers.reduce((total, tier) => total + tier.requiredPicks, 0)
-  const totalGoalscorerPicks = overview.teamTiers.length
+  const totalTeamPicks = payload.teamTiers.reduce((total, tier) => total + tier.requiredPicks, 0)
+  const totalGoalscorerPicks = payload.teamTiers.length
 
   return (
     <section className="space-y-6">

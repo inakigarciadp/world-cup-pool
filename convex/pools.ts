@@ -1,15 +1,25 @@
 import { v } from 'convex/values'
 
-import { internal } from './_generated/api'
 import { internalMutation, internalQuery, mutation } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
-import type { MutationCtx } from './_generated/server'
+import type { MutationCtx, QueryCtx } from './_generated/server'
 import { requireAdminScriptSecret } from './adminScriptAuth'
 import { hashPin, verifyPin } from './authCrypto'
+import { calculateLeaderboardScores } from './scoring'
 import { stageBonusSeed } from './scoringRules'
 
 const DEMO_SLUG = 'world-cup-2026'
 const DEFAULT_ENTRY_LOCK_AT = Date.UTC(2026, 5, 11, 19, 0, 0)
+const MAX_PARTICIPANTS = 100
+const MAX_TIERS = 25
+const MAX_TEAMS = 200
+const MAX_ELIGIBLE_PLAYERS = 1500
+const MAX_ENTRIES = 100
+const MAX_PICKS = 500
+const MAX_MATCHES = 200
+const MAX_RESULTS = 200
+const MAX_GOALS = 3000
+const MAX_TOP_SCORER_CONFIRMATIONS = 200
 
 type EntryOverview = {
   entryId: Id<'entries'> | null
@@ -32,6 +42,11 @@ type LeaderboardScore = {
   entryId: Id<'entries'>
   participantId: Id<'participants'>
   currentScore: number
+}
+
+type AuthenticatedContext = {
+  pool: Doc<'pools'>
+  participant: Doc<'participants'>
 }
 
 type EligiblePlayerImport = {
@@ -231,86 +246,321 @@ export const getAuthenticatedOverview = internalQuery({
     slug: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const pool = await ctx.db
-      .query('pools')
-      .withIndex('by_slug', (q) => q.eq('slug', args.slug ?? DEMO_SLUG))
-      .unique()
+    const context = await getAuthenticatedContext(ctx, args)
 
-    if (pool === null || pool._id !== args.poolId) {
+    if (context === null) {
       return null
     }
 
-    const sessionParticipant = await ctx.db.get(args.participantId)
+    return serializeAuthenticatedOverview(context)
+  },
+})
 
-    if (sessionParticipant === null || sessionParticipant.poolId !== pool._id) {
+export const getLeaderboardForHttp = internalQuery({
+  args: {
+    poolId: v.id('pools'),
+    participantId: v.id('participants'),
+    slug: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const context = await getAuthenticatedContext(ctx, args)
+
+    if (context === null) {
       return null
     }
 
+    const { pool } = context
     const participants = await ctx.db
       .query('participants')
       .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(100)
+      .take(MAX_PARTICIPANTS)
     const tiers = await ctx.db
       .query('teamTiers')
       .withIndex('by_poolId_and_sortOrder', (q) => q.eq('poolId', pool._id))
-      .take(25)
-    const teams = await ctx.db
-      .query('teams')
-      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(200)
-    const eligiblePlayers = await ctx.db
-      .query('eligiblePlayers')
-      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(1500)
-    const stageBonuses = await ctx.db
-      .query('stageBonuses')
-      .withIndex('by_poolId_and_sortOrder', (q) => q.eq('poolId', pool._id))
-      .take(25)
+      .take(MAX_TIERS)
     const entries = await ctx.db
       .query('entries')
       .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(100)
+      .take(MAX_ENTRIES)
     const entryTeamPicks = await ctx.db
       .query('entryTeamPicks')
       .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(500)
+      .take(MAX_PICKS)
     const entryGoalscorerPicks = await ctx.db
       .query('entryGoalscorerPicks')
       .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(500)
+      .take(MAX_PICKS)
+    const scoresByEntryId = await getScoresByEntryId(ctx, pool._id, {
+      entries,
+      tiers,
+      entryTeamPicks,
+      entryGoalscorerPicks,
+    })
 
+    return {
+      teamTiers: serializeRuleTeamTiers(tiers),
+      leaderboard: buildLeaderboard({ participants, entries, scoresByEntryId }),
+    }
+  },
+})
+
+export const getEntriesForHttp = internalQuery({
+  args: {
+    poolId: v.id('pools'),
+    participantId: v.id('participants'),
+    slug: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const context = await getAuthenticatedContext(ctx, args)
+
+    if (context === null) {
+      return null
+    }
+
+    const { pool, participant: sessionParticipant } = context
+    const participants = await ctx.db
+      .query('participants')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(MAX_PARTICIPANTS)
+    const tiers = await ctx.db
+      .query('teamTiers')
+      .withIndex('by_poolId_and_sortOrder', (q) => q.eq('poolId', pool._id))
+      .take(MAX_TIERS)
+    const teams = await ctx.db
+      .query('teams')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(MAX_TEAMS)
+    const eligiblePlayers = await ctx.db
+      .query('eligiblePlayers')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(MAX_ELIGIBLE_PLAYERS)
+    const entries = await ctx.db
+      .query('entries')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(MAX_ENTRIES)
+    const entryTeamPicks = await ctx.db
+      .query('entryTeamPicks')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(MAX_PICKS)
+    const entryGoalscorerPicks = await ctx.db
+      .query('entryGoalscorerPicks')
+      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
+      .take(MAX_PICKS)
     const tiersById = new Map(tiers.map((tier) => [tier._id, tier]))
     const teamsById = new Map(teams.map((team) => [team._id, team]))
     const teamsByName = new Map(teams.map((team) => [team.name, team]))
     const teamsByCode = new Map(teams.map((team) => [team.fifaCode, team]))
     const eligiblePlayersById = new Map(eligiblePlayers.map((player) => [player._id, player]))
-    const entriesByParticipantId = new Map(entries.map((entry) => [entry.participantId, entry]))
-    const leaderboardScores: LeaderboardScore[] = await ctx.runQuery(
-      internal.scoring.getLeaderboardScoresForPool,
-      { poolId: pool._id },
-    )
-    const scoresByEntryId = new Map(
-      leaderboardScores.map((score) => [score.entryId, score.currentScore]),
-    )
-    const picksByEntryId = new Map<Id<'entries'>, Doc<'entryTeamPicks'>[]>()
-    const goalscorerPicksByEntryId = new Map<Id<'entries'>, Doc<'entryGoalscorerPicks'>[]>()
+    const scoresByEntryId = await getScoresByEntryId(ctx, pool._id, {
+      entries,
+      tiers,
+      entryTeamPicks,
+      entryGoalscorerPicks,
+    })
+    const currentEntry =
+      entries.find((entry) => entry.participantId === sessionParticipant._id) ?? null
+    const picksByEntryId = groupByEntry(entryTeamPicks)
+    const goalscorerPicksByEntryId = groupByEntry(entryGoalscorerPicks)
 
-    for (const pick of entryTeamPicks) {
-      const existing = picksByEntryId.get(pick.entryId) ?? []
-      existing.push(pick)
-      picksByEntryId.set(pick.entryId, existing)
+    return {
+      pool: {
+        entryLockAt: pool.entryLockAt,
+        status: pool.status,
+      },
+      teamTiers: serializeTeamTiers(tiers, teams),
+      eligiblePlayers: eligiblePlayers
+        .filter((player) => player.isActive)
+        .sort((left, right) => left.name.localeCompare(right.name))
+        .map((player) => ({
+          ...getEligiblePlayerTeamFields(player, teamsById, teamsByName, teamsByCode),
+          id: player._id,
+          name: player.name,
+        })),
+      leaderboard: buildEntryOverviews({
+        participants,
+        entries,
+        entryTeamPicksByEntryId: picksByEntryId,
+        entryGoalscorerPicksByEntryId: goalscorerPicksByEntryId,
+        tiersById,
+        teamsById,
+        eligiblePlayersById,
+        scoresByEntryId,
+      }),
+      currentEntry:
+        currentEntry === null
+          ? null
+          : {
+              teamPickIds: (picksByEntryId.get(currentEntry._id) ?? []).map((pick) => pick.teamId),
+              goalscorerPickIds: (goalscorerPicksByEntryId.get(currentEntry._id) ?? []).map(
+                (pick) => ({
+                  tierId: pick.tierId,
+                  eligiblePlayerId: pick.eligiblePlayerId,
+                }),
+              ),
+            },
+    }
+  },
+})
+
+export const getRulesForHttp = internalQuery({
+  args: {
+    poolId: v.id('pools'),
+    participantId: v.id('participants'),
+    slug: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const context = await getAuthenticatedContext(ctx, args)
+
+    if (context === null) {
+      return null
     }
 
-    for (const pick of entryGoalscorerPicks) {
-      const existing = goalscorerPicksByEntryId.get(pick.entryId) ?? []
-      existing.push(pick)
-      goalscorerPicksByEntryId.set(pick.entryId, existing)
-    }
+    const tiers = await ctx.db
+      .query('teamTiers')
+      .withIndex('by_poolId_and_sortOrder', (q) => q.eq('poolId', context.pool._id))
+      .take(MAX_TIERS)
 
-    const entryOverviews: EntryOverview[] = participants.map((participant) => {
+    return {
+      teamTiers: serializeRuleTeamTiers(tiers),
+    }
+  },
+})
+
+async function getAuthenticatedContext(
+  ctx: QueryCtx,
+  args: {
+    poolId: Id<'pools'>
+    participantId: Id<'participants'>
+    slug?: string
+  },
+): Promise<AuthenticatedContext | null> {
+  const pool = await ctx.db.get(args.poolId)
+
+  if (pool === null || (args.slug !== undefined && pool.slug !== args.slug)) {
+    return null
+  }
+
+  const participant = await ctx.db.get(args.participantId)
+
+  if (participant === null || participant.poolId !== pool._id) {
+    return null
+  }
+
+  return { pool, participant }
+}
+
+function serializeAuthenticatedOverview({ pool, participant }: AuthenticatedContext) {
+  return {
+    session: {
+      participantId: participant._id,
+      participantName: participant.displayName,
+      isAdmin: participant.isAdmin,
+    },
+    pool: {
+      name: pool.name,
+      slug: pool.slug,
+      entryLockAt: pool.entryLockAt,
+      status: pool.status,
+    },
+  }
+}
+
+async function getScoresByEntryId(
+  ctx: QueryCtx,
+  poolId: Id<'pools'>,
+  input: {
+    entries: Doc<'entries'>[]
+    tiers: Doc<'teamTiers'>[]
+    entryTeamPicks: Doc<'entryTeamPicks'>[]
+    entryGoalscorerPicks: Doc<'entryGoalscorerPicks'>[]
+  },
+) {
+  if (input.entries.length === 0) {
+    return new Map<Id<'entries'>, number>()
+  }
+
+  const matches = await ctx.db
+    .query('matches')
+    .withIndex('by_poolId_and_matchNumber', (q) => q.eq('poolId', poolId))
+    .take(MAX_MATCHES)
+  const results = await ctx.db
+    .query('matchResults')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .take(MAX_RESULTS)
+  const goals = await ctx.db
+    .query('matchGoals')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .take(MAX_GOALS)
+  const topScorerConfirmations = await ctx.db
+    .query('topScorerConfirmations')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .take(MAX_TOP_SCORER_CONFIRMATIONS)
+  const leaderboardScores: LeaderboardScore[] = calculateLeaderboardScores({
+    entries: input.entries,
+    tiers: input.tiers,
+    teamPicks: input.entryTeamPicks,
+    goalscorerPicks: input.entryGoalscorerPicks,
+    matches,
+    results,
+    goals,
+    topScorerConfirmations,
+  })
+
+  return new Map(leaderboardScores.map((score) => [score.entryId, score.currentScore]))
+}
+
+function buildLeaderboard({
+  participants,
+  entries,
+  scoresByEntryId,
+}: {
+  participants: Doc<'participants'>[]
+  entries: Doc<'entries'>[]
+  scoresByEntryId: Map<Id<'entries'>, number>
+}) {
+  const entriesByParticipantId = new Map(entries.map((entry) => [entry.participantId, entry]))
+
+  return sortLeaderboard(
+    participants.map((participant) => {
+      const entry = entriesByParticipantId.get(participant._id) ?? null
+
+      return {
+        entryId: entry?._id ?? null,
+        participantId: participant._id,
+        participantName: participant.displayName,
+        currentScore: entry === null ? 0 : (scoresByEntryId.get(entry._id) ?? 0),
+        submittedAt: entry?.submittedAt ?? null,
+      }
+    }),
+  )
+}
+
+function buildEntryOverviews({
+  participants,
+  entries,
+  entryTeamPicksByEntryId,
+  entryGoalscorerPicksByEntryId,
+  tiersById,
+  teamsById,
+  eligiblePlayersById,
+  scoresByEntryId,
+}: {
+  participants: Doc<'participants'>[]
+  entries: Doc<'entries'>[]
+  entryTeamPicksByEntryId: Map<Id<'entries'>, Doc<'entryTeamPicks'>[]>
+  entryGoalscorerPicksByEntryId: Map<Id<'entries'>, Doc<'entryGoalscorerPicks'>[]>
+  tiersById: Map<Id<'teamTiers'>, Doc<'teamTiers'>>
+  teamsById: Map<Id<'teams'>, Doc<'teams'>>
+  eligiblePlayersById: Map<Id<'eligiblePlayers'>, Doc<'eligiblePlayers'>>
+  scoresByEntryId: Map<Id<'entries'>, number>
+}): EntryOverview[] {
+  const entriesByParticipantId = new Map(entries.map((entry) => [entry.participantId, entry]))
+
+  return sortLeaderboard(
+    participants.map((participant) => {
       const entry = entriesByParticipantId.get(participant._id) ?? null
       const goalscorerPicks = (
-        entry === null ? [] : (goalscorerPicksByEntryId.get(entry._id) ?? [])
+        entry === null ? [] : (entryGoalscorerPicksByEntryId.get(entry._id) ?? [])
       )
         .map((pick) => {
           const tier = tiersById.get(pick.tierId)
@@ -328,7 +578,7 @@ export const getAuthenticatedOverview = internalQuery({
             left.sortOrder - right.sortOrder || left.playerName.localeCompare(right.playerName),
         )
         .map(({ tierName, playerName, teamName }) => ({ tierName, playerName, teamName }))
-      const teamPicks = (entry === null ? [] : (picksByEntryId.get(entry._id) ?? []))
+      const teamPicks = (entry === null ? [] : (entryTeamPicksByEntryId.get(entry._id) ?? []))
         .map((pick) => {
           const tier = tiersById.get(pick.tierId)
           const team = teamsById.get(pick.teamId)
@@ -354,78 +604,57 @@ export const getAuthenticatedOverview = internalQuery({
         currentScore: entry === null ? 0 : (scoresByEntryId.get(entry._id) ?? 0),
         submittedAt: entry?.submittedAt ?? null,
       }
-    })
-    const currentEntry =
-      entries.find((entry) => entry.participantId === sessionParticipant._id) ?? null
+    }),
+  )
+}
 
-    return {
-      session: {
-        participantId: sessionParticipant._id,
-        participantName: sessionParticipant.displayName,
-        isAdmin: sessionParticipant.isAdmin,
-      },
-      pool: {
-        name: pool.name,
-        slug: pool.slug,
-        entryLockAt: pool.entryLockAt,
-        status: pool.status,
-      },
-      counts: {
-        participants: participants.length,
-        teamTiers: tiers.length,
-        teams: teams.length,
-        eligiblePlayers: eligiblePlayers.length,
-        entries: entries.length,
-      },
-      teamTiers: tiers.map((tier) => ({
-        id: tier._id,
-        name: tier.name,
-        requiredPicks: tier.requiredPicks,
-        multiplier: tier.multiplier ?? null,
-        teams: teams
-          .filter((team) => team.tierId === tier._id)
-          .sort((left, right) => left.name.localeCompare(right.name))
-          .map((team) => ({
-            id: team._id,
-            name: team.name,
-            fifaCode: team.fifaCode,
-            groupCode: team.groupCode ?? '?',
-          })),
+function sortLeaderboard<
+  T extends { entryId: Id<'entries'> | null; currentScore: number; participantName: string },
+>(entries: T[]) {
+  return entries.sort(
+    (left, right) =>
+      Number(right.entryId !== null) - Number(left.entryId !== null) ||
+      right.currentScore - left.currentScore ||
+      left.participantName.localeCompare(right.participantName),
+  )
+}
+
+function serializeRuleTeamTiers(tiers: Doc<'teamTiers'>[]) {
+  return tiers.map((tier) => ({
+    id: tier._id,
+    name: tier.name,
+    requiredPicks: tier.requiredPicks,
+    multiplier: tier.multiplier ?? null,
+  }))
+}
+
+function serializeTeamTiers(tiers: Doc<'teamTiers'>[], teams: Doc<'teams'>[]) {
+  return tiers.map((tier) => ({
+    id: tier._id,
+    name: tier.name,
+    requiredPicks: tier.requiredPicks,
+    multiplier: tier.multiplier ?? null,
+    teams: teams
+      .filter((team) => team.tierId === tier._id)
+      .sort((left, right) => left.name.localeCompare(right.name))
+      .map((team) => ({
+        id: team._id,
+        name: team.name,
+        fifaCode: team.fifaCode,
+        groupCode: team.groupCode ?? '?',
       })),
-      eligiblePlayers: eligiblePlayers
-        .filter((player) => player.isActive)
-        .sort((left, right) => left.name.localeCompare(right.name))
-        .map((player) => ({
-          ...getEligiblePlayerTeamFields(player, teamsById, teamsByName, teamsByCode),
-          id: player._id,
-          name: player.name,
-        })),
-      stageBonuses: stageBonuses.map((bonus) => ({
-        id: bonus._id,
-        stage: bonus.stage,
-        points: bonus.points,
-      })),
-      leaderboard: entryOverviews.sort(
-        (left, right) =>
-          Number(right.entryId !== null) - Number(left.entryId !== null) ||
-          right.currentScore - left.currentScore ||
-          left.participantName.localeCompare(right.participantName),
-      ),
-      currentEntry:
-        currentEntry === null
-          ? null
-          : {
-              teamPickIds: (picksByEntryId.get(currentEntry._id) ?? []).map((pick) => pick.teamId),
-              goalscorerPickIds: (goalscorerPicksByEntryId.get(currentEntry._id) ?? []).map(
-                (pick) => ({
-                  tierId: pick.tierId,
-                  eligiblePlayerId: pick.eligiblePlayerId,
-                }),
-              ),
-            },
-    }
-  },
-})
+  }))
+}
+
+function groupByEntry<T extends { entryId: Id<'entries'> }>(rows: T[]) {
+  const rowsByEntryId = new Map<Id<'entries'>, T[]>()
+
+  for (const row of rows) {
+    rowsByEntryId.set(row.entryId, [...(rowsByEntryId.get(row.entryId) ?? []), row])
+  }
+
+  return rowsByEntryId
+}
 
 export const saveEntryForHttp = internalMutation({
   args: {

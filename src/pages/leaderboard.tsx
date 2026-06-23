@@ -1,13 +1,18 @@
+import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 
-import type { Overview } from '@/lib/httpApi'
+import type { LeaderboardPayload } from '@/lib/httpApi'
+import { leaderboardQueryOptions, requireLoadedLeaderboard } from '@/lib/leaderboard-query'
 import { useOverview } from '@/lib/overview-context'
+import { getUserErrorMessage } from '@/lib/user-error'
 
 export function LeaderboardPage() {
   const { overview } = useOverview()
+  const { data, isLoading, error } = useQuery(leaderboardQueryOptions)
+  const payload = data === null || data === undefined ? null : requireLoadedLeaderboard(data)
   const myParticipantId = overview.session.participantId
   const myName = overview.session.participantName
-  const leaderboard = rankLeaderboard(overview.leaderboard)
+  const leaderboard = payload === null ? [] : rankLeaderboard(payload.leaderboard)
   const top = leaderboard.slice(0, 3)
   const rest = leaderboard.slice(3)
   const myEntry = leaderboard.find((entry) => entry.participantId === myParticipantId) ?? null
@@ -16,79 +21,98 @@ export function LeaderboardPage() {
     <section className="space-y-6">
       <HeroNav />
 
-      <HeroCard
-        myName={myName}
-        myRank={myEntry?.rank ?? 0}
-        myScore={myEntry?.currentScore ?? 0}
-        hasEntry={myEntry?.entryId != null}
-        submitted={myEntry?.submittedAt != null}
-      />
-
-      <div>
-        <div className="section-label mb-3">Podio</div>
-        <Podium top={top} myParticipantId={myParticipantId} />
-      </div>
-
-      {rest.length > 0 ? (
-        <div className="space-y-3">
-          <div className="section-label">El resto</div>
-          <ul className="space-y-2.5">
-            {rest.map((entry) => {
-              const isMe = entry.participantId === myParticipantId
-              const content = (
-                <>
-                  <span className="rank-circle">{formatRank(entry.rank)}</span>
-                  <span className="min-w-0">
-                    <span className="block truncate font-heading text-sm font-bold">
-                      {entry.participantName}
-                      {isMe ? (
-                        <span className="ml-1.5 text-[0.65rem] font-bold uppercase tracking-[0.12em] opacity-80">
-                          (tú)
-                        </span>
-                      ) : null}
-                    </span>
-                  </span>
-                  <span className="leaderboard-score">
-                    {formatLeaderboardScore(entry)}
-                    {entry.entryId != null ? <small>pts</small> : null}
-                  </span>
-                </>
-              )
-
-              if (isMe) {
-                return (
-                  <li key={entry.entryId ?? entry.participantId} className="leaderboard-row is-me">
-                    {content}
-                  </li>
-                )
-              }
-
-              return (
-                <li key={entry.entryId ?? entry.participantId}>
-                  <Link
-                    to="/entries"
-                    search={{ participantId: entry.participantId }}
-                    aria-label={`Ver apuesta de ${entry.participantName}`}
-                    className="leaderboard-row"
-                  >
-                    {content}
-                  </Link>
-                </li>
-              )
-            })}
-          </ul>
+      {isLoading ? (
+        <div className="sticker-soft px-5 py-6 text-sm font-semibold text-ink-soft">
+          Cargando clasificación…
         </div>
       ) : null}
 
-      {overview.leaderboard.length === 0 ? (
-        <div className="sticker-soft px-5 py-8 text-center">
-          <p className="heading text-lg">Aún no hay apuestas</p>
-          <p className="mt-1 text-sm text-ink-soft">
-            Sé el primero en elegir tus{' '}
-            {overview.teamTiers.reduce((total, tier) => total + tier.requiredPicks, 0)} selecciones
-            y {overview.teamTiers.length} goleadores.
-          </p>
+      {error ? (
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
+          {getUserErrorMessage(error, 'No se ha podido cargar la clasificación.')}
         </div>
+      ) : null}
+
+      {payload ? (
+        <>
+          <HeroCard
+            myName={myName}
+            myRank={myEntry?.rank ?? 0}
+            myScore={myEntry?.currentScore ?? 0}
+            hasEntry={myEntry?.entryId != null}
+            submitted={myEntry?.submittedAt != null}
+          />
+
+          <div>
+            <div className="section-label mb-3">Podio</div>
+            <Podium top={top} myParticipantId={myParticipantId} />
+          </div>
+
+          {rest.length > 0 ? (
+            <div className="space-y-3">
+              <div className="section-label">El resto</div>
+              <ul className="space-y-2.5">
+                {rest.map((entry) => {
+                  const isMe = entry.participantId === myParticipantId
+                  const content = (
+                    <>
+                      <span className="rank-circle">{formatRank(entry.rank)}</span>
+                      <span className="min-w-0">
+                        <span className="block truncate font-heading text-sm font-bold">
+                          {entry.participantName}
+                          {isMe ? (
+                            <span className="ml-1.5 text-[0.65rem] font-bold uppercase tracking-[0.12em] opacity-80">
+                              (tú)
+                            </span>
+                          ) : null}
+                        </span>
+                      </span>
+                      <span className="leaderboard-score">
+                        {formatLeaderboardScore(entry)}
+                        {entry.entryId != null ? <small>pts</small> : null}
+                      </span>
+                    </>
+                  )
+
+                  if (isMe) {
+                    return (
+                      <li
+                        key={entry.entryId ?? entry.participantId}
+                        className="leaderboard-row is-me"
+                      >
+                        {content}
+                      </li>
+                    )
+                  }
+
+                  return (
+                    <li key={entry.entryId ?? entry.participantId}>
+                      <Link
+                        to="/entries"
+                        search={{ participantId: entry.participantId }}
+                        aria-label={`Ver apuesta de ${entry.participantName}`}
+                        className="leaderboard-row"
+                      >
+                        {content}
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          ) : null}
+
+          {payload.leaderboard.length === 0 ? (
+            <div className="sticker-soft px-5 py-8 text-center">
+              <p className="heading text-lg">Aún no hay apuestas</p>
+              <p className="mt-1 text-sm text-ink-soft">
+                Sé el primero en elegir tus{' '}
+                {payload.teamTiers.reduce((total, tier) => total + tier.requiredPicks, 0)}{' '}
+                selecciones y {payload.teamTiers.length} goleadores.
+              </p>
+            </div>
+          ) : null}
+        </>
       ) : null}
     </section>
   )
@@ -216,9 +240,9 @@ function Podium({
   )
 }
 
-type RankedLeaderboardEntry = Overview['leaderboard'][number] & { rank: number }
+type RankedLeaderboardEntry = LeaderboardPayload['leaderboard'][number] & { rank: number }
 
-function rankLeaderboard(entries: Overview['leaderboard']): RankedLeaderboardEntry[] {
+function rankLeaderboard(entries: LeaderboardPayload['leaderboard']): RankedLeaderboardEntry[] {
   let previousScore: number | null = null
   let previousRank = 0
   let scoredEntries = 0
@@ -264,6 +288,6 @@ function formatScore(value: number) {
   }).format(value)
 }
 
-function formatLeaderboardScore(entry: Overview['leaderboard'][number]) {
+function formatLeaderboardScore(entry: LeaderboardPayload['leaderboard'][number]) {
   return entry.entryId === null ? '-' : formatScore(entry.currentScore)
 }

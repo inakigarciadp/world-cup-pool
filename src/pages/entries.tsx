@@ -1,36 +1,53 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearch } from '@tanstack/react-router'
 import { CalendarClock, Check, ListChecks, Save, Search } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Combobox } from '@/components/ui/combobox'
-import { saveEntry, type Overview } from '@/lib/httpApi'
-import { overviewQueryKey, overviewQueryOptions } from '@/lib/overview-query'
-import { useOverview } from '@/lib/overview-context'
+import { saveEntry, type EntriesPayload } from '@/lib/httpApi'
+import { entriesQueryKey, entriesQueryOptions, requireLoadedEntries } from '@/lib/entries-query'
+import { leaderboardQueryKey } from '@/lib/leaderboard-query'
 import { filterGoalscorers, getFlagEmoji, getTournamentGroups } from '@/lib/teams'
 import { getUserErrorMessage } from '@/lib/user-error'
 
 export function EntriesPage() {
-  const { overview } = useOverview()
   const { participantId } = useSearch({ from: '/_authenticated/entries' })
+  const { data, isLoading, error } = useQuery(entriesQueryOptions)
+  const payload = data === null || data === undefined ? null : requireLoadedEntries(data)
 
   return (
     <section className="space-y-7">
-      <EntryEditor overview={overview} />
-      <OtherEntries overview={overview} targetParticipantId={participantId} />
+      {isLoading ? (
+        <div className="sticker-soft px-5 py-6 text-sm font-semibold text-ink-soft">
+          Cargando entradas…
+        </div>
+      ) : null}
+
+      {error ? (
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">
+          {getUserErrorMessage(error, 'No se han podido cargar las entradas.')}
+        </div>
+      ) : null}
+
+      {payload ? (
+        <>
+          <EntryEditor payload={payload} />
+          <OtherEntries payload={payload} targetParticipantId={participantId} />
+        </>
+      ) : null}
     </section>
   )
 }
 
-function EntryEditor({ overview }: { overview: Overview }) {
+function EntryEditor({ payload }: { payload: EntriesPayload }) {
   const queryClient = useQueryClient()
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>(
-    overview.currentEntry?.teamPickIds ?? [],
+    payload.currentEntry?.teamPickIds ?? [],
   )
   const [goalscorerPickIds, setGoalscorerPickIds] = useState<Record<string, string>>(() =>
     Object.fromEntries(
-      overview.currentEntry?.goalscorerPickIds.map((pick) => [
+      payload.currentEntry?.goalscorerPickIds.map((pick) => [
         pick.tierId,
         pick.eligiblePlayerId,
       ]) ?? [],
@@ -46,16 +63,18 @@ function EntryEditor({ overview }: { overview: Overview }) {
         Object.entries(goalscorerPickIds)
           .filter(([, eligiblePlayerId]) => eligiblePlayerId !== '')
           .map(([tierId, eligiblePlayerId]) => ({ tierId, eligiblePlayerId })),
-      ),
+    ),
     onSuccess: async () => {
-      const nextOverview = await queryClient.fetchQuery({
-        ...overviewQueryOptions,
+      const nextEntries = await queryClient.fetchQuery({
+        ...entriesQueryOptions,
         staleTime: 0,
       })
 
-      if (nextOverview) {
-        queryClient.setQueryData(overviewQueryKey, nextOverview)
+      if (nextEntries) {
+        queryClient.setQueryData(entriesQueryKey, nextEntries)
       }
+
+      await queryClient.invalidateQueries({ queryKey: leaderboardQueryKey })
 
       toast.success('Entrada guardada', {
         description: 'Tu apuesta se ha actualizado correctamente.',
@@ -67,26 +86,26 @@ function EntryEditor({ overview }: { overview: Overview }) {
       })
     },
   })
-  const isLocked = overview.pool.status !== 'open' || overview.pool.entryLockAt <= now
-  const tournamentGroups = useMemo(() => getTournamentGroups(overview), [overview])
-  const totalPicks = overview.teamTiers.reduce((acc, tier) => acc + tier.requiredPicks, 0)
+  const isLocked = payload.pool.status !== 'open' || payload.pool.entryLockAt <= now
+  const tournamentGroups = useMemo(() => getTournamentGroups(payload), [payload])
+  const totalPicks = payload.teamTiers.reduce((acc, tier) => acc + tier.requiredPicks, 0)
   const pickedTeams = selectedTeamIds.length
   const pickedGoalscorers = Object.values(goalscorerPickIds).filter(Boolean).length
-  const lockDateLabel = formatEntryLockDate(overview.pool.entryLockAt)
+  const lockDateLabel = formatEntryLockDate(payload.pool.entryLockAt)
   const progress = Math.min(
     100,
     Math.round(
-      ((pickedTeams + pickedGoalscorers) / (totalPicks + overview.teamTiers.length)) * 100,
+      ((pickedTeams + pickedGoalscorers) / (totalPicks + payload.teamTiers.length)) * 100,
     ),
   )
 
   useEffect(() => {
     const timeoutId = window.setTimeout(
       () => setNow(Date.now()),
-      Math.max(overview.pool.entryLockAt - Date.now(), 0),
+      Math.max(payload.pool.entryLockAt - Date.now(), 0),
     )
     return () => window.clearTimeout(timeoutId)
-  }, [overview.pool.entryLockAt])
+  }, [payload.pool.entryLockAt])
 
   function toggleTeam(teamId: string, requiredPicks: number, tierTeamIds: string[]) {
     setSelectedTeamIds((current) => {
@@ -115,7 +134,7 @@ function EntryEditor({ overview }: { overview: Overview }) {
         <div>
           <h2 className="display-title text-3xl leading-[0.95]">Haz tu apuesta</h2>
           <p className="mt-1.5 text-sm font-semibold opacity-75">
-            {pickedTeams}/{totalPicks} selecciones · {pickedGoalscorers}/{overview.teamTiers.length}{' '}
+            {pickedTeams}/{totalPicks} selecciones · {pickedGoalscorers}/{payload.teamTiers.length}{' '}
             goleadores
           </p>
         </div>
@@ -146,7 +165,7 @@ function EntryEditor({ overview }: { overview: Overview }) {
         </p>
       </div>
 
-      {overview.teamTiers.length === 0 ? (
+      {payload.teamTiers.length === 0 ? (
         <p className="rounded-2xl border bg-surface px-4 py-3 text-sm text-ink-soft">
           Todavía no hay bombos configurados.
         </p>
@@ -165,7 +184,7 @@ function EntryEditor({ overview }: { overview: Overview }) {
           </div>
           {showTournamentGroups ? <TournamentGroups groups={tournamentGroups} /> : null}
           <div className="space-y-4">
-            {overview.teamTiers.map((tier) => {
+            {payload.teamTiers.map((tier) => {
               const tierTeamIds = tier.teams.map((team) => team.id)
               const pickedInTier = selectedTeamIds.filter((id) => tierTeamIds.includes(id)).length
               const complete = pickedInTier === tier.requiredPicks
@@ -221,18 +240,18 @@ function EntryEditor({ overview }: { overview: Overview }) {
 
       <div className="space-y-4">
         <div className="section-label">Goleadores</div>
-        {overview.eligiblePlayers.length === 0 ? (
+        {payload.eligiblePlayers.length === 0 ? (
           <p className="rounded-2xl border bg-surface px-4 py-3 text-sm text-ink-soft">
             Todavía no hay goleadores configurados.
           </p>
         ) : (
           <div className="space-y-4">
-            {overview.teamTiers.map((tier) => {
+            {payload.teamTiers.map((tier) => {
               const selectedGoalscorerId = goalscorerPickIds[tier.id] ?? ''
               const selectedGoalscorer =
-                overview.eligiblePlayers.find((player) => player.id === selectedGoalscorerId) ??
+                payload.eligiblePlayers.find((player) => player.id === selectedGoalscorerId) ??
                 null
-              const availableGoalscorers = overview.eligiblePlayers.filter(
+              const availableGoalscorers = payload.eligiblePlayers.filter(
                 (player) => player.tierId === tier.id,
               )
               const search = goalscorerSearchByTier[tier.id] ?? ''
@@ -266,7 +285,7 @@ function EntryEditor({ overview }: { overview: Overview }) {
                       <Combobox.Root
                         value={selectedGoalscorerId || null}
                         itemToStringLabel={(playerId) => {
-                          const player = overview.eligiblePlayers.find(
+                          const player = payload.eligiblePlayers.find(
                             (candidate) => candidate.id === playerId,
                           )
                           return player ? `${player.name} · ${player.teamName}` : playerId
@@ -364,15 +383,15 @@ function EntryEditor({ overview }: { overview: Overview }) {
 }
 
 function OtherEntries({
-  overview,
+  payload,
   targetParticipantId,
 }: {
-  overview: Overview
+  payload: EntriesPayload
   targetParticipantId?: string
 }) {
   const cardRefs = useRef(new Map<string, HTMLElement>())
   const [highlightedParticipantId, setHighlightedParticipantId] = useState<string | null>(null)
-  const entries = overview.leaderboard
+  const entries = payload.leaderboard
 
   useEffect(() => {
     if (!targetParticipantId) return

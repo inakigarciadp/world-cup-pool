@@ -42,7 +42,8 @@ import {
   requireLoadedMatches,
   matchesAdminQueryKey,
 } from '@/lib/matches-query'
-import { overviewQueryKey } from '@/lib/overview-query'
+import { entriesQueryKey } from '@/lib/entries-query'
+import { leaderboardQueryKey } from '@/lib/leaderboard-query'
 import { useOverview } from '@/lib/overview-context'
 import { getFlagEmoji } from '@/lib/teams'
 import { getUserErrorMessage } from '@/lib/user-error'
@@ -309,7 +310,8 @@ function AdminTopScorerEditor({
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['goalscorers'] }),
         queryClient.invalidateQueries({ queryKey: ['goalscorers', 'admin'] }),
-        queryClient.invalidateQueries({ queryKey: overviewQueryKey }),
+        queryClient.invalidateQueries({ queryKey: leaderboardQueryKey }),
+        queryClient.invalidateQueries({ queryKey: entriesQueryKey }),
       ])
       toast.success('Máximos goleadores guardados', {
         description: 'La clasificación se recalculará con esta confirmación.',
@@ -601,7 +603,8 @@ function AdminMatchEditor({
       queryClient.invalidateQueries({ queryKey: ['matches'] }),
       queryClient.invalidateQueries({ queryKey: ['goalscorers'] }),
       queryClient.invalidateQueries({ queryKey: matchesAdminQueryKey(match.id) }),
-      queryClient.invalidateQueries({ queryKey: overviewQueryKey }),
+      queryClient.invalidateQueries({ queryKey: leaderboardQueryKey }),
+      queryClient.invalidateQueries({ queryKey: entriesQueryKey }),
     ])
     toast.success(successMessage, {
       description: 'Los cambios se han guardado correctamente.',
