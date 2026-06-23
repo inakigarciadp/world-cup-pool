@@ -302,11 +302,17 @@ http.route({
     }
 
     const url = new URL(request.url)
+    const matchId = url.searchParams.get('matchId')
+
+    if (matchId === null) {
+      return jsonResponse({ error: 'Falta el partido a editar.' }, request, 400)
+    }
 
     try {
       const admin = await ctx.runQuery(internal.matches.getMatchAdminForHttp, {
         poolId: payload.poolId as Id<'pools'>,
         participantId: payload.participantId as Id<'participants'>,
+        matchId: matchId as Id<'matches'>,
         slug: url.searchParams.get('slug') ?? undefined,
       })
 

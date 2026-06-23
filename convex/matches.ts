@@ -292,14 +292,17 @@ export const getMatchAdminForHttp = internalQuery({
   args: {
     poolId: v.id('pools'),
     participantId: v.id('participants'),
+    matchId: v.id('matches'),
     slug: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { pool } = await requireAdminParticipant(ctx, args)
-    const matches = await ctx.db
-      .query('matches')
-      .withIndex('by_poolId_and_matchNumber', (q) => q.eq('poolId', pool._id))
-      .take(MAX_MATCHES)
+    const match = await ctx.db.get(args.matchId)
+
+    if (match === null || match.poolId !== pool._id) {
+      throw new Error('No se ha encontrado el partido.')
+    }
+
     const teams = await ctx.db
       .query('teams')
       .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
@@ -308,33 +311,25 @@ export const getMatchAdminForHttp = internalQuery({
       .query('eligiblePlayers')
       .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
       .take(2000)
-    const results = await ctx.db
+    const result = await ctx.db
       .query('matchResults')
-      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(200)
+      .withIndex('by_matchId', (q) => q.eq('matchId', match._id))
+      .unique()
     const goals = await ctx.db
       .query('matchGoals')
-      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(2000)
+      .withIndex('by_matchId_and_sortOrder', (q) => q.eq('matchId', match._id))
+      .take(100)
     const teamsById = new Map(teams.map((team) => [team._id, team]))
     const teamsByCode = new Map(teams.map((team) => [team.fifaCode, team]))
     const teamsByName = new Map(teams.map((team) => [team.name, team]))
-    const resultsByMatchId = new Map(results.map((result) => [result.matchId, result]))
-    const goalCountByMatchId = new Map<Id<'matches'>, number>()
-
-    for (const goal of goals) {
-      goalCountByMatchId.set(goal.matchId, (goalCountByMatchId.get(goal.matchId) ?? 0) + 1)
-    }
+    const expectedGoals = result === null ? 0 : result.homeGoals + result.awayGoals
+    const recordedGoals = goals.length
 
     return {
       teams: serializeTeams(teams),
       eligiblePlayers: serializeActivePlayers(eligiblePlayers, teamsById, teamsByCode, teamsByName),
-      matches: matches.map((match) => {
-        const result = resultsByMatchId.get(match._id) ?? null
-        const expectedGoals = result === null ? 0 : result.homeGoals + result.awayGoals
-        const recordedGoals = goalCountByMatchId.get(match._id) ?? 0
-
-        return {
+      matches: [
+        {
           matchId: match._id,
           completeness:
             result !== null && expectedGoals !== recordedGoals
@@ -345,8 +340,8 @@ export const getMatchAdminForHttp = internalQuery({
                   extraGoals: Math.max(recordedGoals - expectedGoals, 0),
                 }
               : null,
-        }
-      }),
+        },
+      ],
     }
   },
 })
