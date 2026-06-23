@@ -370,13 +370,12 @@ function OtherEntries({
   overview: Overview
   targetParticipantId?: string
 }) {
-  const myParticipantId = overview.session.participantId
   const cardRefs = useRef(new Map<string, HTMLElement>())
   const [highlightedParticipantId, setHighlightedParticipantId] = useState<string | null>(null)
-  const others = overview.leaderboard.filter((entry) => entry.participantId !== myParticipantId)
+  const entries = overview.leaderboard
 
   useEffect(() => {
-    if (!targetParticipantId || targetParticipantId === myParticipantId) return
+    if (!targetParticipantId) return
 
     const card = cardRefs.current.get(targetParticipantId)
     if (!card) return
@@ -386,15 +385,15 @@ function OtherEntries({
 
     const timeoutId = window.setTimeout(() => setHighlightedParticipantId(null), 1800)
     return () => window.clearTimeout(timeoutId)
-  }, [myParticipantId, targetParticipantId, others.length])
+  }, [targetParticipantId, entries.length])
 
-  if (others.length === 0) return null
+  if (entries.length === 0) return null
 
   return (
     <section className="space-y-4">
       <div className="section-label">La cuadrilla</div>
       <div className="space-y-3">
-        {others.map((entry) => (
+        {entries.map((entry) => (
           <article
             key={entry.entryId ?? entry.participantId}
             ref={(element) => {
