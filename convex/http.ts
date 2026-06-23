@@ -191,6 +191,81 @@ http.route({
 })
 
 http.route({
+  path: '/api/leaderboard',
+  method: 'GET',
+  handler: httpAction(async (ctx, request) => {
+    const payload = await getAccessPayload(request)
+
+    if (payload === null) {
+      return unauthorized(request, clearAccessCookie())
+    }
+
+    const url = new URL(request.url)
+    const leaderboard = await ctx.runQuery(internal.pools.getLeaderboardForHttp, {
+      poolId: payload.poolId as Id<'pools'>,
+      participantId: payload.participantId as Id<'participants'>,
+      slug: url.searchParams.get('slug') ?? undefined,
+    })
+
+    if (leaderboard === null) {
+      return unauthorized(request)
+    }
+
+    return jsonResponse(leaderboard, request)
+  }),
+})
+
+http.route({
+  path: '/api/entries',
+  method: 'GET',
+  handler: httpAction(async (ctx, request) => {
+    const payload = await getAccessPayload(request)
+
+    if (payload === null) {
+      return unauthorized(request, clearAccessCookie())
+    }
+
+    const url = new URL(request.url)
+    const entries = await ctx.runQuery(internal.pools.getEntriesForHttp, {
+      poolId: payload.poolId as Id<'pools'>,
+      participantId: payload.participantId as Id<'participants'>,
+      slug: url.searchParams.get('slug') ?? undefined,
+    })
+
+    if (entries === null) {
+      return unauthorized(request)
+    }
+
+    return jsonResponse(entries, request)
+  }),
+})
+
+http.route({
+  path: '/api/rules',
+  method: 'GET',
+  handler: httpAction(async (ctx, request) => {
+    const payload = await getAccessPayload(request)
+
+    if (payload === null) {
+      return unauthorized(request, clearAccessCookie())
+    }
+
+    const url = new URL(request.url)
+    const rules = await ctx.runQuery(internal.pools.getRulesForHttp, {
+      poolId: payload.poolId as Id<'pools'>,
+      participantId: payload.participantId as Id<'participants'>,
+      slug: url.searchParams.get('slug') ?? undefined,
+    })
+
+    if (rules === null) {
+      return unauthorized(request)
+    }
+
+    return jsonResponse(rules, request)
+  }),
+})
+
+http.route({
   path: '/api/entry',
   method: 'POST',
   handler: httpAction(async (ctx, request) => {
@@ -544,6 +619,21 @@ http.route({
 })
 http.route({
   path: '/api/overview',
+  method: 'OPTIONS',
+  handler: httpAction(async (_ctx, request) => optionsResponse(request)),
+})
+http.route({
+  path: '/api/leaderboard',
+  method: 'OPTIONS',
+  handler: httpAction(async (_ctx, request) => optionsResponse(request)),
+})
+http.route({
+  path: '/api/entries',
+  method: 'OPTIONS',
+  handler: httpAction(async (_ctx, request) => optionsResponse(request)),
+})
+http.route({
+  path: '/api/rules',
   method: 'OPTIONS',
   handler: httpAction(async (_ctx, request) => optionsResponse(request)),
 })

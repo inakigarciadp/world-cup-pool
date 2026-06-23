@@ -14,10 +14,21 @@ const MAX_TOP_SCORER_CONFIRMATIONS = 200
 
 const stageBonusPointsByStage = new Map(stageBonusSeed.map((bonus) => [bonus.stage, bonus.points]))
 
-type EntryScore = {
+export type EntryScore = {
   entryId: Id<'entries'>
   participantId: Id<'participants'>
   currentScore: number
+}
+
+export type LeaderboardScoreInputs = {
+  entries: Doc<'entries'>[]
+  tiers: Doc<'teamTiers'>[]
+  teamPicks: Doc<'entryTeamPicks'>[]
+  goalscorerPicks: Doc<'entryGoalscorerPicks'>[]
+  matches: Doc<'matches'>[]
+  results: Doc<'matchResults'>[]
+  goals: Doc<'matchGoals'>[]
+  topScorerConfirmations: Doc<'topScorerConfirmations'>[]
 }
 
 export const getLeaderboardScoresForPool = internalQuery({
@@ -58,42 +69,64 @@ export const getLeaderboardScoresForPool = internalQuery({
       .withIndex('by_poolId', (q) => q.eq('poolId', args.poolId))
       .take(MAX_TOP_SCORER_CONFIRMATIONS)
 
-    const tiersById = new Map(tiers.map((tier) => [tier._id, tier]))
-    const resultsByMatchId = new Map(results.map((result) => [result.matchId, result]))
-    const teamPicksByEntryId = groupByEntry(teamPicks)
-    const goalscorerPicksByEntryId = groupByEntry(goalscorerPicks)
-    const teamMatchPoints = calculateTeamMatchPoints(matches, resultsByMatchId)
-    const teamStageBonusPoints = calculateTeamStageBonusPoints(matches)
-    const teamWinnerBonusPoints = calculateTeamWinnerBonusPoints(matches, resultsByMatchId)
-    const goalsByPlayerId = calculateGoalsByPlayerId(goals)
-    const confirmedTopScorerIds = new Set(
-      topScorerConfirmations.map((confirmation) => confirmation.eligiblePlayerId),
-    )
-
-    return entries
-      .map((entry) => ({
-        entryId: entry._id,
-        participantId: entry.participantId,
-        currentScore: roundScore(
-          calculateEntryScore({
-            teamPicks: teamPicksByEntryId.get(entry._id) ?? [],
-            goalscorerPicks: goalscorerPicksByEntryId.get(entry._id) ?? [],
-            tiersById,
-            teamMatchPoints,
-            teamStageBonusPoints,
-            teamWinnerBonusPoints,
-            goalsByPlayerId,
-            confirmedTopScorerIds,
-          }),
-        ),
-      }))
-      .sort(
-        (left, right) =>
-          right.currentScore - left.currentScore ||
-          String(left.participantId).localeCompare(String(right.participantId)),
-      )
+    return calculateLeaderboardScores({
+      entries,
+      tiers,
+      teamPicks,
+      goalscorerPicks,
+      matches,
+      results,
+      goals,
+      topScorerConfirmations,
+    })
   },
 })
+
+export function calculateLeaderboardScores({
+  entries,
+  tiers,
+  teamPicks,
+  goalscorerPicks,
+  matches,
+  results,
+  goals,
+  topScorerConfirmations,
+}: LeaderboardScoreInputs): EntryScore[] {
+  const tiersById = new Map(tiers.map((tier) => [tier._id, tier]))
+  const resultsByMatchId = new Map(results.map((result) => [result.matchId, result]))
+  const teamPicksByEntryId = groupByEntry(teamPicks)
+  const goalscorerPicksByEntryId = groupByEntry(goalscorerPicks)
+  const teamMatchPoints = calculateTeamMatchPoints(matches, resultsByMatchId)
+  const teamStageBonusPoints = calculateTeamStageBonusPoints(matches)
+  const teamWinnerBonusPoints = calculateTeamWinnerBonusPoints(matches, resultsByMatchId)
+  const goalsByPlayerId = calculateGoalsByPlayerId(goals)
+  const confirmedTopScorerIds = new Set(
+    topScorerConfirmations.map((confirmation) => confirmation.eligiblePlayerId),
+  )
+
+  return entries
+    .map((entry) => ({
+      entryId: entry._id,
+      participantId: entry.participantId,
+      currentScore: roundScore(
+        calculateEntryScore({
+          teamPicks: teamPicksByEntryId.get(entry._id) ?? [],
+          goalscorerPicks: goalscorerPicksByEntryId.get(entry._id) ?? [],
+          tiersById,
+          teamMatchPoints,
+          teamStageBonusPoints,
+          teamWinnerBonusPoints,
+          goalsByPlayerId,
+          confirmedTopScorerIds,
+        }),
+      ),
+    }))
+    .sort(
+      (left, right) =>
+        right.currentScore - left.currentScore ||
+        String(left.participantId).localeCompare(String(right.participantId)),
+    )
+}
 
 function calculateEntryScore({
   teamPicks,

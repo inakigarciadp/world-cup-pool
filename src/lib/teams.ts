@@ -1,12 +1,17 @@
-import type { Overview } from '@/lib/httpApi'
+import type { EntriesPayload } from '@/lib/httpApi'
 
-export function getTournamentGroups(overview: Overview) {
+export function getTournamentGroups(payload: Pick<EntriesPayload, 'teamTiers'>) {
   const groups = new Map<
     string,
-    Array<Overview['teamTiers'][number]['teams'][number] & { tierName: string; tierOrder: number }>
+    Array<
+      EntriesPayload['teamTiers'][number]['teams'][number] & {
+        tierName: string
+        tierOrder: number
+      }
+    >
   >()
 
-  for (const [tierIndex, tier] of overview.teamTiers.entries()) {
+  for (const [tierIndex, tier] of payload.teamTiers.entries()) {
     for (const team of tier.teams) {
       const groupCode = team.groupCode || '?'
       groups.set(groupCode, [
@@ -26,7 +31,7 @@ export function getTournamentGroups(overview: Overview) {
     }))
 }
 
-export function filterGoalscorers(players: Overview['eligiblePlayers'], search: string) {
+export function filterGoalscorers(players: EntriesPayload['eligiblePlayers'], search: string) {
   const tokens = normalizeSearch(search).split(' ').filter(Boolean)
 
   if (tokens.length === 0) {
