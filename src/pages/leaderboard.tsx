@@ -76,11 +76,15 @@ export function LeaderboardPage() {
 
                   if (isMe) {
                     return (
-                      <li
-                        key={entry.entryId ?? entry.participantId}
-                        className="leaderboard-row is-me"
-                      >
-                        {content}
+                      <li key={entry.entryId ?? entry.participantId}>
+                        <Link
+                          to="/entries"
+                          search={{ participantId: entry.participantId }}
+                          aria-label="Ver tu apuesta"
+                          className="leaderboard-row is-me"
+                        >
+                          {content}
+                        </Link>
                       </li>
                     )
                   }
@@ -213,13 +217,16 @@ function Podium({
 
         if (isMe) {
           return (
-            <div
+            <Link
               key={entry.entryId ?? entry.participantId}
+              to="/entries"
+              search={{ participantId: entry.participantId }}
+              aria-label="Ver tu apuesta"
               className="podium-step"
               data-place={entry.rank || topIndex + 1}
             >
               {content}
-            </div>
+            </Link>
           )
         }
 
