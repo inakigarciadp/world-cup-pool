@@ -35,6 +35,7 @@ import {
 } from '@/lib/httpApi'
 import {
   goalscorersAdminQueryOptions,
+  goalscorersQueryKey,
   goalscorersQueryOptions,
   matchesAdminQueryOptions,
   matchesQueryOptions,
@@ -94,11 +95,12 @@ export function MatchesPage() {
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['matches'] }),
+        queryClient.invalidateQueries({ queryKey: goalscorersQueryKey }),
         queryClient.invalidateQueries({ queryKey: leaderboardQueryKey }),
         queryClient.invalidateQueries({ queryKey: entriesRootQueryKey }),
       ])
       toast.success('Proyecciones recalculadas', {
-        description: 'La clasificación y los partidos se han actualizado.',
+        description: 'La clasificación, los partidos y los goleadores se han actualizado.',
       })
     },
     onError: (error: Error) => {

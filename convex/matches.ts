@@ -6,6 +6,7 @@ import type { MutationCtx, QueryCtx } from './_generated/server'
 import { requireAdminScriptSecret } from './adminScriptAuth'
 import {
   refreshEntriesProjection,
+  refreshGoalscorerProjection,
   refreshHotPathProjections,
   refreshLeaderboardProjection,
 } from './projections'
@@ -137,39 +138,17 @@ export const getGoalscorersForHttp = internalQuery({
   },
   handler: async (ctx, args) => {
     const { pool } = await requireAuthenticatedParticipant(ctx, args)
-    const teams = await ctx.db
-      .query('teams')
+    const projection = await ctx.db
+      .query('goalscorerProjections')
       .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(200)
-    const eligiblePlayers = await ctx.db
-      .query('eligiblePlayers')
-      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(2000)
-    const goals = await ctx.db
-      .query('matchGoals')
-      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(2000)
-    const topScorerConfirmations = await ctx.db
-      .query('topScorerConfirmations')
-      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(MAX_TOP_SCORER_CONFIRMATIONS)
-    const teamsById = new Map(teams.map((team) => [team._id, team]))
-    const teamsByCode = new Map(teams.map((team) => [team.fifaCode, team]))
-    const teamsByName = new Map(teams.map((team) => [team.name, team]))
-    const playersById = new Map(eligiblePlayers.map((player) => [player._id, player]))
-    const confirmedTopScorerIds = new Set(
-      topScorerConfirmations.map((confirmation) => confirmation.eligiblePlayerId),
-    )
+      .unique()
+
+    if (projection === null) {
+      throw new Error('Los goleadores necesitan un recálculo de Admin.')
+    }
 
     return {
-      goalscorerLeaderboard: buildGoalscorerLeaderboard({
-        goals,
-        playersById,
-        teamsById,
-        teamsByCode,
-        teamsByName,
-        confirmedTopScorerIds,
-      }),
+      goalscorerLeaderboard: projection.goalscorerLeaderboard,
     }
   },
 })
@@ -522,6 +501,7 @@ export const replaceTopScorerConfirmationsForHttp = internalMutation({
     }
 
     await refreshLeaderboardProjection(ctx, pool._id, projectionOptions)
+    await refreshGoalscorerProjection(ctx, pool._id, projectionOptions)
     await refreshEntriesProjection(ctx, pool._id, projectionOptions)
 
     return { ok: true }
@@ -1863,66 +1843,6 @@ function serializeActivePlayers(
         teamFifaCode: team?.fifaCode ?? player.teamFifaCode ?? '',
       }
     })
-}
-
-function buildGoalscorerLeaderboard({
-  goals,
-  playersById,
-  teamsById,
-  teamsByCode,
-  teamsByName,
-  confirmedTopScorerIds,
-}: {
-  goals: Doc<'matchGoals'>[]
-  playersById: Map<Id<'eligiblePlayers'>, Doc<'eligiblePlayers'>>
-  teamsById: Map<Id<'teams'>, Doc<'teams'>>
-  teamsByCode: Map<string, Doc<'teams'>>
-  teamsByName: Map<string, Doc<'teams'>>
-  confirmedTopScorerIds: Set<Id<'eligiblePlayers'>>
-}) {
-  const goalsByPlayerId = new Map<Id<'eligiblePlayers'>, number>()
-
-  for (const goal of goals) {
-    if (goal.isOwnGoal) {
-      continue
-    }
-
-    const player = playersById.get(goal.creditedPlayerId) ?? null
-
-    if (player === null || !player.isActive) {
-      continue
-    }
-
-    goalsByPlayerId.set(
-      goal.creditedPlayerId,
-      (goalsByPlayerId.get(goal.creditedPlayerId) ?? 0) + 1,
-    )
-  }
-
-  return Array.from(goalsByPlayerId.entries())
-    .map(([playerId, goals]) => {
-      const player = playersById.get(playerId)
-
-      if (player === undefined) {
-        return null
-      }
-
-      const team = resolvePlayerTeam(player, teamsById, teamsByCode, teamsByName)
-
-      return {
-        playerId,
-        playerName: player.name,
-        teamId: team?._id ?? null,
-        teamName: team?.name ?? player.teamName,
-        teamFifaCode: team?.fifaCode ?? player.teamFifaCode ?? '',
-        goals,
-        isConfirmedTopScorer: confirmedTopScorerIds.has(playerId),
-      }
-    })
-    .filter(isPresent)
-    .sort(
-      (left, right) => right.goals - left.goals || left.playerName.localeCompare(right.playerName),
-    )
 }
 
 function serializeTopScorerConfirmations({

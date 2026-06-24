@@ -5,10 +5,12 @@ tables to assemble public payloads. Those pages are expected to be visited
 repeatedly during the tournament, while the source facts change only through
 bounded Admin or Entry writes.
 
-Store three read models in Convex:
+Store four read models in Convex:
 
 - one `leaderboardProjections` document per Pool containing the public
   Leaderboard payload
+- one `goalscorerProjections` document per Pool containing the public Goalscorer
+  leaderboard payload
 - one `entriesProjections` document per Pool containing the public Entries page
   payload, the eligible players selected by Entries, and per-Participant current
   Entry pick ids
