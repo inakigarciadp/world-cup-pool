@@ -29,9 +29,10 @@ export async function refreshHotPathProjections(
   }
 
   const leaderboard = await refreshLeaderboardProjection(ctx, poolId, options)
+  const entries = await refreshEntriesProjection(ctx, poolId, options)
   const matches = await refreshMatchProjections(ctx, poolId, options)
 
-  return { leaderboard, matches }
+  return { leaderboard, entries, matches }
 }
 
 export async function refreshLeaderboardProjection(
@@ -107,6 +108,132 @@ export async function refreshLeaderboardProjection(
   return {
     teamTiers: payload.teamTiers.length,
     leaderboardEntries: payload.leaderboard.length,
+  }
+}
+
+export async function refreshEntriesProjection(
+  ctx: MutationCtx,
+  poolId: Id<'pools'>,
+  options: ProjectionRefreshOptions,
+) {
+  const pool = await ctx.db.get(poolId)
+
+  if (pool === null) {
+    throw new Error('No se ha encontrado la porra.')
+  }
+
+  const participants = await ctx.db
+    .query('participants')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .take(MAX_PARTICIPANTS)
+  const tiers = await ctx.db
+    .query('teamTiers')
+    .withIndex('by_poolId_and_sortOrder', (q) => q.eq('poolId', poolId))
+    .take(MAX_TIERS)
+  const teams = await ctx.db
+    .query('teams')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .take(MAX_TEAMS)
+  const eligiblePlayers = await ctx.db
+    .query('eligiblePlayers')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .take(MAX_ELIGIBLE_PLAYERS)
+  const entries = await ctx.db
+    .query('entries')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .take(MAX_ENTRIES)
+  const teamPicks = await ctx.db
+    .query('entryTeamPicks')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .take(MAX_PICKS)
+  const goalscorerPicks = await ctx.db
+    .query('entryGoalscorerPicks')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .take(MAX_PICKS)
+  const matches = await ctx.db
+    .query('matches')
+    .withIndex('by_poolId_and_matchNumber', (q) => q.eq('poolId', poolId))
+    .take(MAX_MATCHES)
+  const results = await ctx.db
+    .query('matchResults')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .take(MAX_RESULTS)
+  const goals = await ctx.db
+    .query('matchGoals')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .take(MAX_GOALS)
+  const topScorerConfirmations = await ctx.db
+    .query('topScorerConfirmations')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .take(MAX_TOP_SCORER_CONFIRMATIONS)
+  const scores: EntryScore[] = calculateLeaderboardScores({
+    entries,
+    tiers,
+    teamPicks,
+    goalscorerPicks,
+    matches,
+    results,
+    goals,
+    topScorerConfirmations,
+  })
+  const scoresByEntryId = new Map(scores.map((score) => [score.entryId, score.currentScore]))
+  const tiersById = new Map(tiers.map((tier) => [tier._id, tier]))
+  const teamsById = new Map(teams.map((team) => [team._id, team]))
+  const teamsByCode = new Map(teams.map((team) => [team.fifaCode, team]))
+  const teamsByName = new Map(teams.map((team) => [team.name, team]))
+  const eligiblePlayersById = new Map(eligiblePlayers.map((player) => [player._id, player]))
+  const teamPicksByEntryId = groupByEntry(teamPicks)
+  const goalscorerPicksByEntryId = groupByEntry(goalscorerPicks)
+  const payload = {
+    poolId,
+    pool: {
+      entryLockAt: pool.entryLockAt,
+      status: pool.status,
+    },
+    teamTiers: serializeEntryTeamTiers(tiers, teams),
+    eligiblePlayers: serializeEntryEligiblePlayers({
+      eligiblePlayers,
+      teamsById,
+      teamsByCode,
+      teamsByName,
+    }),
+    leaderboard: buildEntryOverviews({
+      participants,
+      entries,
+      teamPicksByEntryId,
+      goalscorerPicksByEntryId,
+      tiersById,
+      teamsById,
+      eligiblePlayersById,
+      scoresByEntryId,
+    }),
+    currentEntries: buildCurrentEntries({
+      entries,
+      teamPicksByEntryId,
+      goalscorerPicksByEntryId,
+      tiersById,
+      teamsById,
+      eligiblePlayersById,
+    }),
+    updatedAt: options.updatedAt,
+    updatedByParticipantId: options.updatedByParticipantId,
+  }
+  const existing = await ctx.db
+    .query('entriesProjections')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .unique()
+
+  if (existing === null) {
+    await ctx.db.insert('entriesProjections', payload)
+  } else {
+    await ctx.db.patch(existing._id, payload)
+  }
+
+  return {
+    teamTiers: payload.teamTiers.length,
+    eligiblePlayers: payload.eligiblePlayers.length,
+    leaderboardEntries: payload.leaderboard.length,
+    currentEntries: payload.currentEntries.length,
   }
 }
 
@@ -253,6 +380,132 @@ function buildLeaderboard({
   )
 }
 
+function buildEntryOverviews({
+  participants,
+  entries,
+  teamPicksByEntryId,
+  goalscorerPicksByEntryId,
+  tiersById,
+  teamsById,
+  eligiblePlayersById,
+  scoresByEntryId,
+}: {
+  participants: Doc<'participants'>[]
+  entries: Doc<'entries'>[]
+  teamPicksByEntryId: Map<Id<'entries'>, Doc<'entryTeamPicks'>[]>
+  goalscorerPicksByEntryId: Map<Id<'entries'>, Doc<'entryGoalscorerPicks'>[]>
+  tiersById: Map<Id<'teamTiers'>, Doc<'teamTiers'>>
+  teamsById: Map<Id<'teams'>, Doc<'teams'>>
+  eligiblePlayersById: Map<Id<'eligiblePlayers'>, Doc<'eligiblePlayers'>>
+  scoresByEntryId: Map<Id<'entries'>, number>
+}) {
+  const entriesByParticipantId = new Map(entries.map((entry) => [entry.participantId, entry]))
+
+  return sortLeaderboard(
+    participants.map((participant) => {
+      const entry = entriesByParticipantId.get(participant._id) ?? null
+      const goalscorerPicks = (
+        entry === null ? [] : (goalscorerPicksByEntryId.get(entry._id) ?? [])
+      )
+        .map((pick) => {
+          const tier = tiersById.get(pick.tierId)
+          const player = eligiblePlayersById.get(pick.eligiblePlayerId)
+
+          return {
+            tierName: tier?.name ?? 'Bombo desconocido',
+            playerName: player?.name ?? 'Goleador desconocido',
+            teamName: player?.teamName ?? 'Selección desconocida',
+            sortOrder: tier?.sortOrder ?? 999,
+          }
+        })
+        .sort(
+          (left, right) =>
+            left.sortOrder - right.sortOrder || left.playerName.localeCompare(right.playerName),
+        )
+        .map(({ tierName, playerName, teamName }) => ({ tierName, playerName, teamName }))
+      const teamPicks = (entry === null ? [] : (teamPicksByEntryId.get(entry._id) ?? []))
+        .map((pick) => {
+          const tier = tiersById.get(pick.tierId)
+          const team = teamsById.get(pick.teamId)
+
+          return {
+            tierName: tier?.name ?? 'Bombo desconocido',
+            teamName: team?.name ?? 'Selección desconocida',
+            sortOrder: tier?.sortOrder ?? 999,
+          }
+        })
+        .sort(
+          (left, right) =>
+            left.sortOrder - right.sortOrder || left.teamName.localeCompare(right.teamName),
+        )
+        .map(({ tierName, teamName }) => ({ tierName, teamName }))
+
+      return {
+        entryId: entry?._id ?? null,
+        participantId: participant._id,
+        participantName: participant.displayName,
+        goalscorerPicks,
+        teamPicks,
+        currentScore: entry === null ? 0 : (scoresByEntryId.get(entry._id) ?? 0),
+        submittedAt: entry?.submittedAt ?? null,
+      }
+    }),
+  )
+}
+
+function buildCurrentEntries({
+  entries,
+  teamPicksByEntryId,
+  goalscorerPicksByEntryId,
+  tiersById,
+  teamsById,
+  eligiblePlayersById,
+}: {
+  entries: Doc<'entries'>[]
+  teamPicksByEntryId: Map<Id<'entries'>, Doc<'entryTeamPicks'>[]>
+  goalscorerPicksByEntryId: Map<Id<'entries'>, Doc<'entryGoalscorerPicks'>[]>
+  tiersById: Map<Id<'teamTiers'>, Doc<'teamTiers'>>
+  teamsById: Map<Id<'teams'>, Doc<'teams'>>
+  eligiblePlayersById: Map<Id<'eligiblePlayers'>, Doc<'eligiblePlayers'>>
+}) {
+  return entries.map((entry) => ({
+    participantId: entry.participantId,
+    teamPickIds: (teamPicksByEntryId.get(entry._id) ?? [])
+      .map((pick) => {
+        const tier = tiersById.get(pick.tierId)
+        const team = teamsById.get(pick.teamId)
+
+        return {
+          teamId: pick.teamId,
+          teamName: team?.name ?? 'Selección desconocida',
+          sortOrder: tier?.sortOrder ?? 999,
+        }
+      })
+      .sort(
+        (left, right) =>
+          left.sortOrder - right.sortOrder || left.teamName.localeCompare(right.teamName),
+      )
+      .map(({ teamId }) => teamId),
+    goalscorerPickIds: (goalscorerPicksByEntryId.get(entry._id) ?? [])
+      .map((pick) => {
+        const tier = tiersById.get(pick.tierId)
+        const player = eligiblePlayersById.get(pick.eligiblePlayerId)
+
+        return {
+          tierId: pick.tierId,
+          eligiblePlayerId: pick.eligiblePlayerId,
+          playerName: player?.name ?? 'Goleador desconocido',
+          sortOrder: tier?.sortOrder ?? 999,
+        }
+      })
+      .sort(
+        (left, right) =>
+          left.sortOrder - right.sortOrder || left.playerName.localeCompare(right.playerName),
+      )
+      .map(({ tierId, eligiblePlayerId }) => ({ tierId, eligiblePlayerId })),
+  }))
+}
+
 function sortLeaderboard<
   T extends { entryId: Id<'entries'> | null; currentScore: number; participantName: string },
 >(entries: T[]) {
@@ -271,6 +524,53 @@ function serializeRuleTeamTiers(tiers: Doc<'teamTiers'>[]) {
     requiredPicks: tier.requiredPicks,
     multiplier: tier.multiplier ?? null,
   }))
+}
+
+function serializeEntryTeamTiers(tiers: Doc<'teamTiers'>[], teams: Doc<'teams'>[]) {
+  return tiers.map((tier) => ({
+    id: tier._id,
+    name: tier.name,
+    requiredPicks: tier.requiredPicks,
+    multiplier: tier.multiplier ?? null,
+    teams: teams
+      .filter((team) => team.tierId === tier._id)
+      .sort((left, right) => left.name.localeCompare(right.name))
+      .map((team) => ({
+        id: team._id,
+        name: team.name,
+        fifaCode: team.fifaCode,
+        groupCode: team.groupCode ?? '?',
+      })),
+  }))
+}
+
+function serializeEntryEligiblePlayers({
+  eligiblePlayers,
+  teamsById,
+  teamsByCode,
+  teamsByName,
+}: {
+  eligiblePlayers: Doc<'eligiblePlayers'>[]
+  teamsById: Map<Id<'teams'>, Doc<'teams'>>
+  teamsByCode: Map<string, Doc<'teams'>>
+  teamsByName: Map<string, Doc<'teams'>>
+}) {
+  return eligiblePlayers
+    .filter((player) => player.isActive)
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .map((player) => {
+      const team = resolvePlayerTeam(player, teamsById, teamsByCode, teamsByName)
+
+      return {
+        id: player._id,
+        name: player.name,
+        teamId: team?._id ?? null,
+        tierId: team?.tierId ?? null,
+        teamName: team?.name ?? player.teamName,
+        teamFifaCode: team?.fifaCode ?? player.teamFifaCode ?? '',
+        groupCode: team?.groupCode ?? '?',
+      }
+    })
 }
 
 function buildMatchProjection({

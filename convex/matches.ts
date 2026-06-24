@@ -4,7 +4,11 @@ import { internalMutation, internalQuery, mutation } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx, QueryCtx } from './_generated/server'
 import { requireAdminScriptSecret } from './adminScriptAuth'
-import { refreshHotPathProjections, refreshLeaderboardProjection } from './projections'
+import {
+  refreshEntriesProjection,
+  refreshHotPathProjections,
+  refreshLeaderboardProjection,
+} from './projections'
 
 const DEMO_SLUG = 'world-cup-2026'
 const DEFAULT_MATCH_WINDOW_MS = 3 * 60 * 60 * 1000
@@ -512,10 +516,13 @@ export const replaceTopScorerConfirmationsForHttp = internalMutation({
       })
     }
 
-    await refreshLeaderboardProjection(ctx, pool._id, {
+    const projectionOptions = {
       updatedAt: now,
       updatedByParticipantId: participant._id,
-    })
+    }
+
+    await refreshLeaderboardProjection(ctx, pool._id, projectionOptions)
+    await refreshEntriesProjection(ctx, pool._id, projectionOptions)
 
     return { ok: true }
   },

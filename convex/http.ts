@@ -239,14 +239,26 @@ http.route({
     }
 
     const url = new URL(request.url)
-    const entries = await ctx.runQuery(internal.pools.getEntriesForHttp, {
-      poolId: payload.poolId as Id<'pools'>,
-      participantId: payload.participantId as Id<'participants'>,
-      slug: url.searchParams.get('slug') ?? undefined,
-    })
+    let entries
 
-    if (entries === null) {
-      return unauthorized(request)
+    try {
+      entries = await ctx.runQuery(internal.pools.getEntriesForHttp, {
+        poolId: payload.poolId as Id<'pools'>,
+        participantId: payload.participantId as Id<'participants'>,
+        slug: url.searchParams.get('slug') ?? undefined,
+      })
+
+      if (entries === null) {
+        return unauthorized(request)
+      }
+    } catch (caught) {
+      return jsonResponse(
+        {
+          error: caught instanceof Error ? caught.message : 'No se han podido cargar las entradas.',
+        },
+        request,
+        400,
+      )
     }
 
     return jsonResponse(entries, request)

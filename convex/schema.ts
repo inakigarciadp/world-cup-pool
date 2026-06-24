@@ -16,11 +16,61 @@ const leaderboardEntryProjection = v.object({
   submittedAt: v.union(v.number(), v.null()),
 })
 
+const entryTeamPickOverviewProjection = v.object({
+  tierName: v.string(),
+  teamName: v.string(),
+})
+
+const entryGoalscorerPickOverviewProjection = v.object({
+  tierName: v.string(),
+  playerName: v.string(),
+  teamName: v.string(),
+})
+
+const entryOverviewProjection = v.object({
+  entryId: v.union(v.id('entries'), v.null()),
+  participantId: v.id('participants'),
+  participantName: v.string(),
+  goalscorerPicks: v.array(entryGoalscorerPickOverviewProjection),
+  teamPicks: v.array(entryTeamPickOverviewProjection),
+  currentScore: v.number(),
+  submittedAt: v.union(v.number(), v.null()),
+})
+
 const teamOption = v.object({
   id: v.id('teams'),
   name: v.string(),
   fifaCode: v.string(),
   groupCode: v.string(),
+})
+
+const teamTierOptionProjection = v.object({
+  id: v.id('teamTiers'),
+  name: v.string(),
+  requiredPicks: v.number(),
+  multiplier: v.union(v.number(), v.null()),
+  teams: v.array(teamOption),
+})
+
+const entryEligiblePlayerOptionProjection = v.object({
+  id: v.id('eligiblePlayers'),
+  name: v.string(),
+  teamId: v.union(v.id('teams'), v.null()),
+  tierId: v.union(v.id('teamTiers'), v.null()),
+  teamName: v.string(),
+  teamFifaCode: v.string(),
+  groupCode: v.string(),
+})
+
+const currentEntryProjection = v.object({
+  participantId: v.id('participants'),
+  teamPickIds: v.array(v.id('teams')),
+  goalscorerPickIds: v.array(
+    v.object({
+      tierId: v.id('teamTiers'),
+      eligiblePlayerId: v.id('eligiblePlayers'),
+    }),
+  ),
 })
 
 const matchSideProjection = v.object({
@@ -242,6 +292,25 @@ export default defineSchema({
   })
     .index('by_poolId', ['poolId'])
     .index('by_poolId_and_eligiblePlayerId', ['poolId', 'eligiblePlayerId']),
+
+  entriesProjections: defineTable({
+    poolId: v.id('pools'),
+    pool: v.object({
+      entryLockAt: v.number(),
+      status: v.union(
+        v.literal('setup'),
+        v.literal('open'),
+        v.literal('locked'),
+        v.literal('scoring'),
+      ),
+    }),
+    teamTiers: v.array(teamTierOptionProjection),
+    eligiblePlayers: v.array(entryEligiblePlayerOptionProjection),
+    leaderboard: v.array(entryOverviewProjection),
+    currentEntries: v.array(currentEntryProjection),
+    updatedAt: v.number(),
+    updatedByParticipantId: v.union(v.id('participants'), v.null()),
+  }).index('by_poolId', ['poolId']),
 
   leaderboardProjections: defineTable({
     poolId: v.id('pools'),
