@@ -370,6 +370,15 @@ export async function replaceTopScorerConfirmations(eligiblePlayerIds: string[])
   )
 }
 
+export async function recomputeProjections() {
+  return await parseJsonResponse(
+    await fetchWithRefreshRetry('/api/projections/recompute', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+  )
+}
+
 async function request(path: string, init: RequestInit) {
   return await parseJsonResponse(await fetchApi(path, init))
 }

@@ -5,6 +5,7 @@ import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx, QueryCtx } from './_generated/server'
 import { requireAdminScriptSecret } from './adminScriptAuth'
 import { hashPin, verifyPin } from './authCrypto'
+import { refreshHotPathProjections } from './projections'
 import { calculateLeaderboardScores } from './scoring'
 import { stageBonusSeed } from './scoringRules'
 
@@ -270,37 +271,36 @@ export const getLeaderboardForHttp = internalQuery({
     }
 
     const { pool } = context
-    const participants = await ctx.db
-      .query('participants')
+    const projection = await ctx.db
+      .query('leaderboardProjections')
       .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(MAX_PARTICIPANTS)
-    const tiers = await ctx.db
-      .query('teamTiers')
-      .withIndex('by_poolId_and_sortOrder', (q) => q.eq('poolId', pool._id))
-      .take(MAX_TIERS)
-    const entries = await ctx.db
-      .query('entries')
-      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(MAX_ENTRIES)
-    const entryTeamPicks = await ctx.db
-      .query('entryTeamPicks')
-      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(MAX_PICKS)
-    const entryGoalscorerPicks = await ctx.db
-      .query('entryGoalscorerPicks')
-      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(MAX_PICKS)
-    const scoresByEntryId = await getScoresByEntryId(ctx, pool._id, {
-      entries,
-      tiers,
-      entryTeamPicks,
-      entryGoalscorerPicks,
-    })
+      .unique()
+
+    if (projection === null) {
+      throw new Error('La clasificación necesita un recálculo de Admin.')
+    }
 
     return {
-      teamTiers: serializeRuleTeamTiers(tiers),
-      leaderboard: buildLeaderboard({ participants, entries, scoresByEntryId }),
+      teamTiers: projection.teamTiers,
+      leaderboard: projection.leaderboard,
     }
+  },
+})
+
+export const recomputeProjectionsForHttp = internalMutation({
+  args: {
+    poolId: v.id('pools'),
+    participantId: v.id('participants'),
+    slug: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const context = await getAuthenticatedContext(ctx, args)
+
+    if (context === null || !context.participant.isAdmin) {
+      throw new Error('No autorizado.')
+    }
+
+    return await refreshHotPathProjections(ctx, context.pool._id, context.participant._id)
   },
 })
 
@@ -427,7 +427,7 @@ export const getRulesForHttp = internalQuery({
 })
 
 async function getAuthenticatedContext(
-  ctx: QueryCtx,
+  ctx: QueryCtx | MutationCtx,
   args: {
     poolId: Id<'pools'>
     participantId: Id<'participants'>
@@ -507,32 +507,6 @@ async function getScoresByEntryId(
   })
 
   return new Map(leaderboardScores.map((score) => [score.entryId, score.currentScore]))
-}
-
-function buildLeaderboard({
-  participants,
-  entries,
-  scoresByEntryId,
-}: {
-  participants: Doc<'participants'>[]
-  entries: Doc<'entries'>[]
-  scoresByEntryId: Map<Id<'entries'>, number>
-}) {
-  const entriesByParticipantId = new Map(entries.map((entry) => [entry.participantId, entry]))
-
-  return sortLeaderboard(
-    participants.map((participant) => {
-      const entry = entriesByParticipantId.get(participant._id) ?? null
-
-      return {
-        entryId: entry?._id ?? null,
-        participantId: participant._id,
-        participantName: participant.displayName,
-        currentScore: entry === null ? 0 : (scoresByEntryId.get(entry._id) ?? 0),
-        submittedAt: entry?.submittedAt ?? null,
-      }
-    }),
-  )
 }
 
 function buildEntryOverviews({
@@ -811,6 +785,8 @@ export const saveEntryForHttp = internalMutation({
       })
     }
 
+    await refreshHotPathProjections(ctx, pool._id, participant._id)
+
     return { entryId }
   },
 })
@@ -932,6 +908,8 @@ export const importEligiblePlayersForAdmin = mutation({
         }
       }
     }
+
+    await refreshHotPathProjections(ctx, pool._id, null)
 
     return {
       teamsFetched: importsByTeamCode.size,
@@ -1099,6 +1077,8 @@ export const upsertParticipantsFromCsv = mutation({
       }
     }
 
+    await refreshHotPathProjections(ctx, pool._id, null)
+
     return {
       poolId: pool._id,
       inserted,
@@ -1150,6 +1130,8 @@ export const seedPreview = mutation({
         updatedParticipants += 1
       }
     }
+
+    await refreshHotPathProjections(ctx, pool._id, null)
 
     return {
       poolId: pool._id,

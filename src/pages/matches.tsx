@@ -14,6 +14,7 @@ import {
   MapPin,
   Pencil,
   Plus,
+  RefreshCw,
   Save,
   ShieldCheck,
   Trophy,
@@ -25,6 +26,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   replaceMatchGoals,
   replaceTopScorerConfirmations,
+  recomputeProjections,
   saveMatchResult,
   updateMatchTeams,
   type GoalscorersAdminPayload,
@@ -87,6 +89,24 @@ export function MatchesPage() {
       : showOnlyMine
         ? payload.matches.filter((match) => match.hasCurrentParticipantStake)
         : payload.matches
+  const projectionMutation = useMutation({
+    mutationFn: recomputeProjections,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['matches'] }),
+        queryClient.invalidateQueries({ queryKey: leaderboardQueryKey }),
+        queryClient.invalidateQueries({ queryKey: entriesQueryKey }),
+      ])
+      toast.success('Proyecciones recalculadas', {
+        description: 'La clasificación y los partidos se han actualizado.',
+      })
+    },
+    onError: (error: Error) => {
+      toast.error('No se han podido recalcular las proyecciones', {
+        description: getUserErrorMessage(error),
+      })
+    },
+  })
 
   useEffect(() => {
     if (payload === null) return
@@ -122,6 +142,17 @@ export function MatchesPage() {
           <div className="flex items-center justify-between gap-3">
             <div className="section-label">Calendario</div>
             <div className="matches-filter-row">
+              {isAdmin ? (
+                <button
+                  type="button"
+                  className="match-recompute-action"
+                  disabled={projectionMutation.isPending}
+                  onClick={() => projectionMutation.mutate()}
+                >
+                  <RefreshCw className="size-4" aria-hidden="true" />
+                  {projectionMutation.isPending ? 'Recalculando…' : 'Recalcular'}
+                </button>
+              ) : null}
               {payload ? (
                 <label className="match-filter-pill">
                   <input
@@ -177,11 +208,7 @@ export function MatchesPage() {
           {payload ? (
             <div className="space-y-4">
               {visibleMatches.map((match) => (
-                <MatchCard
-                  key={match.id}
-                  match={match}
-                  isAdmin={isAdmin}
-                />
+                <MatchCard key={match.id} match={match} isAdmin={isAdmin} />
               ))}
             </div>
           ) : null}
@@ -424,13 +451,7 @@ function AdminTopScorerEditor({
   )
 }
 
-function MatchCard({
-  match,
-  isAdmin,
-}: {
-  match: Match
-  isAdmin: boolean
-}) {
+function MatchCard({ match, isAdmin }: { match: Match; isAdmin: boolean }) {
   return (
     <article className={`match-card ${match.hasCurrentParticipantStake ? 'is-mine' : ''}`}>
       <header className="match-card-head">
@@ -507,11 +528,7 @@ function MatchCard({
         )}
       </section>
 
-      {isAdmin ? (
-        <AdminMatchEditor
-          match={match}
-        />
-      ) : null}
+      {isAdmin ? <AdminMatchEditor match={match} /> : null}
     </article>
   )
 }
@@ -556,11 +573,7 @@ function ResultBlock({ match }: { match: Match }) {
   )
 }
 
-function AdminMatchEditor({
-  match,
-}: {
-  match: Match
-}) {
+function AdminMatchEditor({ match }: { match: Match }) {
   const queryClient = useQueryClient()
   const [isOpen, setIsOpen] = useState(false)
   const adminQuery = useQuery({

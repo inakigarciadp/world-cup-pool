@@ -1302,6 +1302,26 @@
     font-weight: 800;
   }
 
+  .match-recompute-action {
+    display: inline-flex;
+    min-height: 2.15rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    border-radius: 0.95rem;
+    background: var(--ink);
+    color: var(--paper);
+    padding: 0.48rem 0.72rem;
+    font-family: var(--font-heading);
+    font-size: 0.78rem;
+    font-weight: 850;
+    box-shadow: 0 2px 0 var(--coral-ink);
+  }
+  .match-recompute-action:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
   .goalscorer-board {
     position: relative;
     display: flex;
