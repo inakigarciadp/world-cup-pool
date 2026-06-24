@@ -4,6 +4,7 @@ import { internalMutation, internalQuery, mutation } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx, QueryCtx } from './_generated/server'
 import { requireAdminScriptSecret } from './adminScriptAuth'
+import { refreshHotPathProjections, refreshLeaderboardProjection } from './projections'
 
 const DEMO_SLUG = 'world-cup-2026'
 const DEFAULT_MATCH_WINDOW_MS = 3 * 60 * 60 * 1000
@@ -95,68 +96,17 @@ export const getMatchesForHttp = internalQuery({
   handler: async (ctx, args) => {
     const { pool, participant } = await requireAuthenticatedParticipant(ctx, args)
     const earliestKickoffAt = args.now - DEFAULT_MATCH_WINDOW_MS
-    const matches = await ctx.db
-      .query('matches')
+    const projections = await ctx.db
+      .query('matchProjections')
       .withIndex('by_poolId_and_kickoffAt', (q) => {
         const scoped = q.eq('poolId', pool._id)
         return args.includePast ? scoped : scoped.gt('kickoffAt', earliestKickoffAt)
       })
       .take(MAX_MATCHES)
-    const [firstMatch] = await ctx.db
-      .query('matches')
+    const [firstProjection] = await ctx.db
+      .query('matchProjections')
       .withIndex('by_poolId_and_kickoffAt', (q) => q.eq('poolId', pool._id))
       .take(1)
-    const participants = await ctx.db
-      .query('participants')
-      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(100)
-    const tiers = await ctx.db
-      .query('teamTiers')
-      .withIndex('by_poolId_and_sortOrder', (q) => q.eq('poolId', pool._id))
-      .take(25)
-    const teams = await ctx.db
-      .query('teams')
-      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(200)
-    const eligiblePlayers = await ctx.db
-      .query('eligiblePlayers')
-      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(2000)
-    const entries = await ctx.db
-      .query('entries')
-      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(100)
-    const entryTeamPicks = await ctx.db
-      .query('entryTeamPicks')
-      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(500)
-    const entryGoalscorerPicks = await ctx.db
-      .query('entryGoalscorerPicks')
-      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(500)
-    const results = await ctx.db
-      .query('matchResults')
-      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(200)
-    const goals = await ctx.db
-      .query('matchGoals')
-      .withIndex('by_poolId', (q) => q.eq('poolId', pool._id))
-      .take(2000)
-
-    const tiersById = new Map(tiers.map((tier) => [tier._id, tier]))
-    const teamsById = new Map(teams.map((team) => [team._id, team]))
-    const teamsByCode = new Map(teams.map((team) => [team.fifaCode, team]))
-    const teamsByName = new Map(teams.map((team) => [team.name, team]))
-    const playersById = new Map(eligiblePlayers.map((player) => [player._id, player]))
-    const entriesByParticipantId = new Map(entries.map((entry) => [entry.participantId, entry]))
-    const teamPicksByEntryId = groupByEntry(entryTeamPicks)
-    const goalscorerPicksByEntryId = groupByEntry(entryGoalscorerPicks)
-    const resultsByMatchId = new Map(results.map((result) => [result.matchId, result]))
-    const goalsByMatchId = new Map<Id<'matches'>, Doc<'matchGoals'>[]>()
-
-    for (const goal of goals) {
-      goalsByMatchId.set(goal.matchId, [...(goalsByMatchId.get(goal.matchId) ?? []), goal])
-    }
 
     return {
       session: {
@@ -164,81 +114,13 @@ export const getMatchesForHttp = internalQuery({
         participantName: participant.displayName,
         isAdmin: participant.isAdmin,
       },
-      tournamentStarted: firstMatch !== undefined && firstMatch.kickoffAt <= args.now,
-      matches: matches.map((match) => {
-        const homeTeam =
-          match.homeTeamId === null ? null : (teamsById.get(match.homeTeamId) ?? null)
-        const awayTeam =
-          match.awayTeamId === null ? null : (teamsById.get(match.awayTeamId) ?? null)
-        const result = resultsByMatchId.get(match._id) ?? null
-        const matchGoals = (goalsByMatchId.get(match._id) ?? []).sort(
-          (left, right) => left.sortOrder - right.sortOrder,
-        )
-        const stakes = buildMatchStakes({
-          matchTeamIds: [match.homeTeamId, match.awayTeamId].filter(isTeamId),
-          participants,
-          entriesByParticipantId,
-          teamPicksByEntryId,
-          goalscorerPicksByEntryId,
-          tiersById,
-          teamsById,
-          teamsByCode,
-          teamsByName,
-          playersById,
-        })
-
-        return {
-          id: match._id,
-          matchNumber: match.matchNumber,
-          stage: match.stage,
-          groupName: match.groupName,
-          kickoffAt: match.kickoffAt,
-          venueName: match.venueName,
-          venueCity: match.venueCity,
-          home: {
-            placeholder: match.homePlaceholder,
-            team: serializeTeam(homeTeam),
-          },
-          away: {
-            placeholder: match.awayPlaceholder,
-            team: serializeTeam(awayTeam),
-          },
-          result:
-            result === null
-              ? null
-              : {
-                  homeGoals: result.homeGoals,
-                  awayGoals: result.awayGoals,
-                  penaltyShootoutWinnerTeamId: result.penaltyShootoutWinnerTeamId,
-                  updatedAt: result.updatedAt,
-                },
-          goals: matchGoals.map((goal) => {
-            const player = playersById.get(goal.creditedPlayerId) ?? null
-            const playerTeam =
-              player === null
-                ? null
-                : resolvePlayerTeam(player, teamsById, teamsByCode, teamsByName)
-
-            return {
-              id: goal._id,
-              scoringTeamId: goal.scoringTeamId,
-              scoringTeamName: teamsById.get(goal.scoringTeamId)?.name ?? 'Selección desconocida',
-              creditedPlayerId: goal.creditedPlayerId,
-              creditedPlayerName: player?.name ?? 'Goleador desconocido',
-              creditedPlayerTeamId: playerTeam?._id ?? null,
-              creditedPlayerTeamName:
-                playerTeam?.name ?? player?.teamName ?? 'Selección desconocida',
-              isOwnGoal: goal.isOwnGoal,
-              minuteLabel: goal.minuteLabel,
-              sortOrder: goal.sortOrder,
-            }
-          }),
-          hasCurrentParticipantStake: stakes.some(
-            (stake) => stake.participantId === participant._id,
-          ),
-          stakes,
-        }
-      }),
+      tournamentStarted: firstProjection !== undefined && firstProjection.kickoffAt <= args.now,
+      matches: projections.map((projection) => ({
+        ...projection.card,
+        hasCurrentParticipantStake: projection.stakeParticipantIds.some(
+          (participantId) => participantId === participant._id,
+        ),
+      })),
     }
   },
 })
@@ -393,7 +275,7 @@ export const updateMatchTeamsForHttp = internalMutation({
     awayTeamId: v.union(v.id('teams'), v.null()),
   },
   handler: async (ctx, args) => {
-    const { pool } = await requireAdminParticipant(ctx, args)
+    const { pool, participant } = await requireAdminParticipant(ctx, args)
     const match = await requirePoolMatch(ctx, pool._id, args.matchId)
     const homeTeam = await validateOptionalTeam(ctx, pool._id, args.homeTeamId)
     const awayTeam = await validateOptionalTeam(ctx, pool._id, args.awayTeamId)
@@ -421,6 +303,8 @@ export const updateMatchTeamsForHttp = internalMutation({
       await ctx.db.patch(result._id, { penaltyShootoutWinnerTeamId: null })
     }
 
+    await refreshHotPathProjections(ctx, pool._id, participant._id)
+
     return { ok: true }
   },
 })
@@ -446,6 +330,7 @@ export const saveMatchResultForHttp = internalMutation({
       if (existingResult !== null) {
         await ctx.db.delete(existingResult._id)
       }
+      await refreshHotPathProjections(ctx, pool._id, participant._id)
       return { ok: true }
     }
 
@@ -483,6 +368,8 @@ export const saveMatchResultForHttp = internalMutation({
     } else {
       await ctx.db.patch(existingResult._id, payload)
     }
+
+    await refreshHotPathProjections(ctx, pool._id, participant._id)
 
     return { ok: true }
   },
@@ -577,6 +464,8 @@ export const replaceMatchGoalsForHttp = internalMutation({
       await ctx.db.insert('matchGoals', goal)
     }
 
+    await refreshHotPathProjections(ctx, pool._id, participant._id)
+
     return { ok: true }
   },
 })
@@ -622,6 +511,11 @@ export const replaceTopScorerConfirmationsForHttp = internalMutation({
         confirmedByParticipantId: participant._id,
       })
     }
+
+    await refreshLeaderboardProjection(ctx, pool._id, {
+      updatedAt: now,
+      updatedByParticipantId: participant._id,
+    })
 
     return { ok: true }
   },
@@ -713,6 +607,8 @@ export const importFifaMatchesForAdmin = mutation({
         updated += 1
       }
     }
+
+    await refreshHotPathProjections(ctx, pool._id, null)
 
     return {
       poolId: pool._id,
@@ -988,6 +884,7 @@ export const seedDeterministicTournamentResultsForAdmin = mutation({
       }
     }
 
+    const projections = await refreshHotPathProjections(ctx, pool._id, null)
     const championTeamId = winnersByMatchNumber.get(104) ?? null
     const champion = championTeamId === null ? null : (teamsById.get(championTeamId) ?? null)
 
@@ -1004,6 +901,7 @@ export const seedDeterministicTournamentResultsForAdmin = mutation({
       placeholderPlayersActivated: playerState.activatedPlaceholderPlayers,
       topScorerConfirmationsDeleted,
       topScorerConfirmationsInserted,
+      projections,
       champion:
         champion === null
           ? null
@@ -1927,19 +1825,6 @@ async function validateOptionalTeam(
   return team
 }
 
-function serializeTeam(team: Doc<'teams'> | null) {
-  if (team === null) {
-    return null
-  }
-
-  return {
-    id: team._id,
-    name: team.name,
-    fifaCode: team.fifaCode,
-    groupCode: team.groupCode ?? '?',
-  }
-}
-
 function serializeTeams(teams: Doc<'teams'>[]) {
   return teams
     .sort((left, right) => left.name.localeCompare(right.name))
@@ -2067,110 +1952,6 @@ function serializeTopScorerConfirmations({
     })
     .filter(isPresent)
     .sort((left, right) => left.playerName.localeCompare(right.playerName))
-}
-
-function buildMatchStakes({
-  matchTeamIds,
-  participants,
-  entriesByParticipantId,
-  teamPicksByEntryId,
-  goalscorerPicksByEntryId,
-  tiersById,
-  teamsById,
-  teamsByCode,
-  teamsByName,
-  playersById,
-}: {
-  matchTeamIds: Id<'teams'>[]
-  participants: Doc<'participants'>[]
-  entriesByParticipantId: Map<Id<'participants'>, Doc<'entries'>>
-  teamPicksByEntryId: Map<Id<'entries'>, Doc<'entryTeamPicks'>[]>
-  goalscorerPicksByEntryId: Map<Id<'entries'>, Doc<'entryGoalscorerPicks'>[]>
-  tiersById: Map<Id<'teamTiers'>, Doc<'teamTiers'>>
-  teamsById: Map<Id<'teams'>, Doc<'teams'>>
-  teamsByCode: Map<string, Doc<'teams'>>
-  teamsByName: Map<string, Doc<'teams'>>
-  playersById: Map<Id<'eligiblePlayers'>, Doc<'eligiblePlayers'>>
-}) {
-  const matchTeamSet = new Set(matchTeamIds)
-
-  if (matchTeamSet.size === 0) {
-    return []
-  }
-
-  return participants
-    .map((participant) => {
-      const entry = entriesByParticipantId.get(participant._id)
-
-      if (entry === undefined) {
-        return null
-      }
-
-      const stakes = []
-
-      for (const pick of teamPicksByEntryId.get(entry._id) ?? []) {
-        if (!matchTeamSet.has(pick.teamId)) {
-          continue
-        }
-
-        const team = teamsById.get(pick.teamId)
-        const tier = tiersById.get(pick.tierId)
-
-        stakes.push({
-          kind: 'teamPick' as const,
-          teamId: pick.teamId,
-          teamName: team?.name ?? 'Selección desconocida',
-          tierName: tier?.name ?? 'Bombo',
-        })
-      }
-
-      for (const pick of goalscorerPicksByEntryId.get(entry._id) ?? []) {
-        const player = playersById.get(pick.eligiblePlayerId)
-
-        if (player === undefined) {
-          continue
-        }
-
-        const playerTeam = resolvePlayerTeam(player, teamsById, teamsByCode, teamsByName)
-
-        if (playerTeam === null || !matchTeamSet.has(playerTeam._id)) {
-          continue
-        }
-
-        const tier = tiersById.get(pick.tierId)
-
-        stakes.push({
-          kind: 'goalscorerPick' as const,
-          eligiblePlayerId: pick.eligiblePlayerId,
-          playerName: player.name,
-          teamId: playerTeam._id,
-          teamName: playerTeam.name,
-          tierName: tier?.name ?? 'Bombo',
-        })
-      }
-
-      if (stakes.length === 0) {
-        return null
-      }
-
-      return {
-        participantId: participant._id,
-        participantName: participant.displayName,
-        stakes,
-      }
-    })
-    .filter(isPresent)
-    .sort((left, right) => left.participantName.localeCompare(right.participantName))
-}
-
-function groupByEntry<T extends { entryId: Id<'entries'> }>(rows: T[]) {
-  const byEntryId = new Map<Id<'entries'>, T[]>()
-
-  for (const row of rows) {
-    byEntryId.set(row.entryId, [...(byEntryId.get(row.entryId) ?? []), row])
-  }
-
-  return byEntryId
 }
 
 function resolvePlayerTeam(

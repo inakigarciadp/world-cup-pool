@@ -201,14 +201,27 @@ http.route({
     }
 
     const url = new URL(request.url)
-    const leaderboard = await ctx.runQuery(internal.pools.getLeaderboardForHttp, {
-      poolId: payload.poolId as Id<'pools'>,
-      participantId: payload.participantId as Id<'participants'>,
-      slug: url.searchParams.get('slug') ?? undefined,
-    })
+    let leaderboard
 
-    if (leaderboard === null) {
-      return unauthorized(request)
+    try {
+      leaderboard = await ctx.runQuery(internal.pools.getLeaderboardForHttp, {
+        poolId: payload.poolId as Id<'pools'>,
+        participantId: payload.participantId as Id<'participants'>,
+        slug: url.searchParams.get('slug') ?? undefined,
+      })
+
+      if (leaderboard === null) {
+        return unauthorized(request)
+      }
+    } catch (caught) {
+      return jsonResponse(
+        {
+          error:
+            caught instanceof Error ? caught.message : 'No se ha podido cargar la clasificación.',
+        },
+        request,
+        400,
+      )
     }
 
     return jsonResponse(leaderboard, request)
@@ -603,6 +616,41 @@ http.route({
 })
 
 http.route({
+  path: '/api/projections/recompute',
+  method: 'POST',
+  handler: httpAction(async (ctx, request) => {
+    const payload = await getAccessPayload(request)
+
+    if (payload === null) {
+      return unauthorized(request, clearAccessCookie())
+    }
+
+    const url = new URL(request.url)
+
+    try {
+      const result = await ctx.runMutation(internal.pools.recomputeProjectionsForHttp, {
+        poolId: payload.poolId as Id<'pools'>,
+        participantId: payload.participantId as Id<'participants'>,
+        slug: url.searchParams.get('slug') ?? undefined,
+      })
+
+      return jsonResponse(result, request)
+    } catch (caught) {
+      return jsonResponse(
+        {
+          error:
+            caught instanceof Error
+              ? caught.message
+              : 'No se han podido recalcular las proyecciones.',
+        },
+        request,
+        400,
+      )
+    }
+  }),
+})
+
+http.route({
   path: '/auth/login',
   method: 'OPTIONS',
   handler: httpAction(async (_ctx, request) => optionsResponse(request)),
@@ -679,6 +727,11 @@ http.route({
 })
 http.route({
   path: '/api/top-scorers/confirmations',
+  method: 'OPTIONS',
+  handler: httpAction(async (_ctx, request) => optionsResponse(request)),
+})
+http.route({
+  path: '/api/projections/recompute',
   method: 'OPTIONS',
   handler: httpAction(async (_ctx, request) => optionsResponse(request)),
 })

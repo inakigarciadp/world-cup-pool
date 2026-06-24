@@ -1,6 +1,92 @@
 import { defineSchema, defineTable } from 'convex/server'
 import { v } from 'convex/values'
 
+const teamTierSummary = v.object({
+  id: v.id('teamTiers'),
+  name: v.string(),
+  requiredPicks: v.number(),
+  multiplier: v.union(v.number(), v.null()),
+})
+
+const leaderboardEntryProjection = v.object({
+  entryId: v.union(v.id('entries'), v.null()),
+  participantId: v.id('participants'),
+  participantName: v.string(),
+  currentScore: v.number(),
+  submittedAt: v.union(v.number(), v.null()),
+})
+
+const teamOption = v.object({
+  id: v.id('teams'),
+  name: v.string(),
+  fifaCode: v.string(),
+  groupCode: v.string(),
+})
+
+const matchSideProjection = v.object({
+  placeholder: v.string(),
+  team: v.union(teamOption, v.null()),
+})
+
+const matchGoalProjection = v.object({
+  id: v.id('matchGoals'),
+  scoringTeamId: v.id('teams'),
+  scoringTeamName: v.string(),
+  creditedPlayerId: v.id('eligiblePlayers'),
+  creditedPlayerName: v.string(),
+  creditedPlayerTeamId: v.union(v.id('teams'), v.null()),
+  creditedPlayerTeamName: v.string(),
+  isOwnGoal: v.boolean(),
+  minuteLabel: v.union(v.string(), v.null()),
+  sortOrder: v.number(),
+})
+
+const matchStakeProjection = v.union(
+  v.object({
+    kind: v.literal('teamPick'),
+    teamId: v.id('teams'),
+    teamName: v.string(),
+    tierName: v.string(),
+  }),
+  v.object({
+    kind: v.literal('goalscorerPick'),
+    eligiblePlayerId: v.id('eligiblePlayers'),
+    playerName: v.string(),
+    teamId: v.id('teams'),
+    teamName: v.string(),
+    tierName: v.string(),
+  }),
+)
+
+const matchStakeGroupProjection = v.object({
+  participantId: v.id('participants'),
+  participantName: v.string(),
+  stakes: v.array(matchStakeProjection),
+})
+
+const matchCardProjection = v.object({
+  id: v.id('matches'),
+  matchNumber: v.number(),
+  stage: v.string(),
+  groupName: v.union(v.string(), v.null()),
+  kickoffAt: v.number(),
+  venueName: v.string(),
+  venueCity: v.string(),
+  home: matchSideProjection,
+  away: matchSideProjection,
+  result: v.union(
+    v.object({
+      homeGoals: v.number(),
+      awayGoals: v.number(),
+      penaltyShootoutWinnerTeamId: v.union(v.id('teams'), v.null()),
+      updatedAt: v.number(),
+    }),
+    v.null(),
+  ),
+  goals: v.array(matchGoalProjection),
+  stakes: v.array(matchStakeGroupProjection),
+})
+
 export default defineSchema({
   pools: defineTable({
     name: v.string(),
@@ -156,4 +242,25 @@ export default defineSchema({
   })
     .index('by_poolId', ['poolId'])
     .index('by_poolId_and_eligiblePlayerId', ['poolId', 'eligiblePlayerId']),
+
+  leaderboardProjections: defineTable({
+    poolId: v.id('pools'),
+    teamTiers: v.array(teamTierSummary),
+    leaderboard: v.array(leaderboardEntryProjection),
+    updatedAt: v.number(),
+    updatedByParticipantId: v.union(v.id('participants'), v.null()),
+  }).index('by_poolId', ['poolId']),
+
+  matchProjections: defineTable({
+    poolId: v.id('pools'),
+    matchId: v.id('matches'),
+    kickoffAt: v.number(),
+    matchNumber: v.number(),
+    card: matchCardProjection,
+    stakeParticipantIds: v.array(v.id('participants')),
+    updatedAt: v.number(),
+    updatedByParticipantId: v.union(v.id('participants'), v.null()),
+  })
+    .index('by_poolId_and_kickoffAt', ['poolId', 'kickoffAt'])
+    .index('by_matchId', ['matchId']),
 })
