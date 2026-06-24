@@ -5,12 +5,14 @@ import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx, QueryCtx } from './_generated/server'
 import { requireAdminScriptSecret } from './adminScriptAuth'
 import { hashPin, verifyPin } from './authCrypto'
-import { refreshHotPathProjections } from './projections'
+import { refreshHotPathProjections, serializeEntryEligiblePlayers } from './projections'
 import { stageBonusSeed } from './scoringRules'
 
 const DEMO_SLUG = 'world-cup-2026'
 const DEFAULT_ENTRY_LOCK_AT = Date.UTC(2026, 5, 11, 19, 0, 0)
 const MAX_TIERS = 25
+const MAX_TEAMS = 200
+const MAX_ELIGIBLE_PLAYERS = 2000
 
 type AuthenticatedContext = {
   pool: Doc<'pools'>
@@ -20,6 +22,22 @@ type AuthenticatedContext = {
 type EligiblePlayerImport = {
   name: string
   teamFifaCode: string
+}
+
+type EntryEligiblePlayerOption = {
+  id: Id<'eligiblePlayers'>
+  name: string
+  teamId: Id<'teams'> | null
+  tierId: Id<'teamTiers'> | null
+  teamName: string
+  teamFifaCode: string
+  groupCode: string
+}
+
+type CurrentEntryProjection = {
+  goalscorerPickIds: Array<{
+    eligiblePlayerId: Id<'eligiblePlayers'>
+  }>
 }
 
 const teamSeed = [
@@ -275,6 +293,7 @@ export const getEntriesForHttp = internalQuery({
   args: {
     poolId: v.id('pools'),
     participantId: v.id('participants'),
+    includeEligiblePlayers: v.boolean(),
     slug: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -297,11 +316,16 @@ export const getEntriesForHttp = internalQuery({
     const currentEntry =
       projection.currentEntries.find((entry) => entry.participantId === sessionParticipant._id) ??
       null
+    const includePickerEligiblePlayers =
+      args.includeEligiblePlayers && pool.status === 'open' && pool.entryLockAt > Date.now()
+    const eligiblePlayers = includePickerEligiblePlayers
+      ? await getActiveEligiblePlayersForEntries(ctx, pool._id)
+      : filterSelectedEligiblePlayers(projection.eligiblePlayers, projection.currentEntries)
 
     return {
       pool: projection.pool,
       teamTiers: projection.teamTiers,
-      eligiblePlayers: projection.eligiblePlayers,
+      eligiblePlayers,
       leaderboard: projection.leaderboard,
       currentEntry:
         currentEntry === null
@@ -375,6 +399,42 @@ function serializeAuthenticatedOverview({ pool, participant }: AuthenticatedCont
       status: pool.status,
     },
   }
+}
+
+async function getActiveEligiblePlayersForEntries(
+  ctx: QueryCtx,
+  poolId: Id<'pools'>,
+): Promise<EntryEligiblePlayerOption[]> {
+  const teams = await ctx.db
+    .query('teams')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .take(MAX_TEAMS)
+  const eligiblePlayers = await ctx.db
+    .query('eligiblePlayers')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .take(MAX_ELIGIBLE_PLAYERS)
+  const teamsById = new Map(teams.map((team) => [team._id, team]))
+  const teamsByCode = new Map(teams.map((team) => [team.fifaCode, team]))
+  const teamsByName = new Map(teams.map((team) => [team.name, team]))
+
+  return serializeEntryEligiblePlayers({
+    eligiblePlayers,
+    teamsById,
+    teamsByCode,
+    teamsByName,
+    activeOnly: true,
+  })
+}
+
+function filterSelectedEligiblePlayers(
+  eligiblePlayers: EntryEligiblePlayerOption[],
+  currentEntries: CurrentEntryProjection[],
+) {
+  const selectedEligiblePlayerIds = new Set(
+    currentEntries.flatMap((entry) => entry.goalscorerPickIds.map((pick) => pick.eligiblePlayerId)),
+  )
+
+  return eligiblePlayers.filter((player) => selectedEligiblePlayerIds.has(player.id))
 }
 
 function serializeRuleTeamTiers(tiers: Doc<'teamTiers'>[]) {

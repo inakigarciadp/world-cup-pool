@@ -44,7 +44,7 @@ import {
   requireLoadedMatches,
   matchesAdminQueryKey,
 } from '@/lib/matches-query'
-import { entriesQueryKey } from '@/lib/entries-query'
+import { entriesRootQueryKey } from '@/lib/entries-query'
 import { leaderboardQueryKey } from '@/lib/leaderboard-query'
 import { useOverview } from '@/lib/overview-context'
 import { getFlagEmoji } from '@/lib/teams'
@@ -95,7 +95,7 @@ export function MatchesPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['matches'] }),
         queryClient.invalidateQueries({ queryKey: leaderboardQueryKey }),
-        queryClient.invalidateQueries({ queryKey: entriesQueryKey }),
+        queryClient.invalidateQueries({ queryKey: entriesRootQueryKey }),
       ])
       toast.success('Proyecciones recalculadas', {
         description: 'La clasificación y los partidos se han actualizado.',
@@ -338,7 +338,7 @@ function AdminTopScorerEditor({
         queryClient.invalidateQueries({ queryKey: ['goalscorers'] }),
         queryClient.invalidateQueries({ queryKey: ['goalscorers', 'admin'] }),
         queryClient.invalidateQueries({ queryKey: leaderboardQueryKey }),
-        queryClient.invalidateQueries({ queryKey: entriesQueryKey }),
+        queryClient.invalidateQueries({ queryKey: entriesRootQueryKey }),
       ])
       toast.success('Máximos goleadores guardados', {
         description: 'La clasificación se recalculará con esta confirmación.',
@@ -617,7 +617,7 @@ function AdminMatchEditor({ match }: { match: Match }) {
       queryClient.invalidateQueries({ queryKey: ['goalscorers'] }),
       queryClient.invalidateQueries({ queryKey: matchesAdminQueryKey(match.id) }),
       queryClient.invalidateQueries({ queryKey: leaderboardQueryKey }),
-      queryClient.invalidateQueries({ queryKey: entriesQueryKey }),
+      queryClient.invalidateQueries({ queryKey: entriesRootQueryKey }),
     ])
     toast.success(successMessage, {
       description: 'Los cambios se han guardado correctamente.',

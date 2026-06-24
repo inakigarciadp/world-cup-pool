@@ -231,8 +231,10 @@ export async function getLeaderboard() {
   return (await parseJsonResponse(response)) as LeaderboardPayload
 }
 
-export async function getEntriesData() {
-  const response = await fetchWithRefreshRetry('/api/entries')
+export async function getEntriesData(includeEligiblePlayers: boolean) {
+  const response = await fetchWithRefreshRetry(
+    `/api/entries?includeEligiblePlayers=${includeEligiblePlayers}`,
+  )
 
   if (response.status === 401) {
     return null

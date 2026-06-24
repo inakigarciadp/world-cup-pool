@@ -10,7 +10,8 @@ Store three read models in Convex:
 - one `leaderboardProjections` document per Pool containing the public
   Leaderboard payload
 - one `entriesProjections` document per Pool containing the public Entries page
-  payload and per-Participant current Entry pick ids
+  payload, the eligible players selected by Entries, and per-Participant current
+  Entry pick ids
 - one `matchProjections` document per Match containing the public match-card
   payload and the Participant ids with Match Stakes
 
@@ -19,6 +20,12 @@ Goals, Top Scorer Confirmations, imported Matches, or imported Eligible Players
 refresh the affected projections synchronously for this small single-Pool app.
 Admins also get a manual recompute action as a repair path after deploys or
 imports.
+
+`entriesProjections` intentionally does not store the full active Eligible
+Player picker list. The Entries page requests that broader list only while the
+Pool is open and Entries are still editable. Once Entries are closed, the page
+renders submitted picks from the projection and avoids the broad
+`eligiblePlayers` read.
 
 This trades extra write work and duplicated public payload storage for cheaper
 hot reads and simpler page-level data loading. The source tables remain the

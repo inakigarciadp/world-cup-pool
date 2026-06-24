@@ -245,6 +245,7 @@ http.route({
       entries = await ctx.runQuery(internal.pools.getEntriesForHttp, {
         poolId: payload.poolId as Id<'pools'>,
         participantId: payload.participantId as Id<'participants'>,
+        includeEligiblePlayers: url.searchParams.get('includeEligiblePlayers') === 'true',
         slug: url.searchParams.get('slug') ?? undefined,
       })
 

@@ -134,10 +134,6 @@ export async function refreshEntriesProjection(
     .query('teams')
     .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
     .take(MAX_TEAMS)
-  const eligiblePlayers = await ctx.db
-    .query('eligiblePlayers')
-    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
-    .take(MAX_ELIGIBLE_PLAYERS)
   const entries = await ctx.db
     .query('entries')
     .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
@@ -176,12 +172,13 @@ export async function refreshEntriesProjection(
     goals,
     topScorerConfirmations,
   })
+  const selectedEligiblePlayers = await getSelectedEligiblePlayers(ctx, poolId, goalscorerPicks)
   const scoresByEntryId = new Map(scores.map((score) => [score.entryId, score.currentScore]))
   const tiersById = new Map(tiers.map((tier) => [tier._id, tier]))
   const teamsById = new Map(teams.map((team) => [team._id, team]))
   const teamsByCode = new Map(teams.map((team) => [team.fifaCode, team]))
   const teamsByName = new Map(teams.map((team) => [team.name, team]))
-  const eligiblePlayersById = new Map(eligiblePlayers.map((player) => [player._id, player]))
+  const eligiblePlayersById = new Map(selectedEligiblePlayers.map((player) => [player._id, player]))
   const teamPicksByEntryId = groupByEntry(teamPicks)
   const goalscorerPicksByEntryId = groupByEntry(goalscorerPicks)
   const payload = {
@@ -192,10 +189,11 @@ export async function refreshEntriesProjection(
     },
     teamTiers: serializeEntryTeamTiers(tiers, teams),
     eligiblePlayers: serializeEntryEligiblePlayers({
-      eligiblePlayers,
+      eligiblePlayers: selectedEligiblePlayers,
       teamsById,
       teamsByCode,
       teamsByName,
+      activeOnly: false,
     }),
     leaderboard: buildEntryOverviews({
       participants,
@@ -352,6 +350,23 @@ export async function refreshMatchProjections(
   }
 
   return { upserted, deleted }
+}
+
+async function getSelectedEligiblePlayers(
+  ctx: MutationCtx,
+  poolId: Id<'pools'>,
+  goalscorerPicks: Doc<'entryGoalscorerPicks'>[],
+) {
+  const eligiblePlayerIds = Array.from(
+    new Set(goalscorerPicks.map((pick) => pick.eligiblePlayerId)),
+  )
+  const players = await Promise.all(
+    eligiblePlayerIds.map(async (eligiblePlayerId) => await ctx.db.get(eligiblePlayerId)),
+  )
+
+  return players.filter(
+    (player): player is Doc<'eligiblePlayers'> => player !== null && player.poolId === poolId,
+  )
 }
 
 function buildLeaderboard({
@@ -544,19 +559,21 @@ function serializeEntryTeamTiers(tiers: Doc<'teamTiers'>[], teams: Doc<'teams'>[
   }))
 }
 
-function serializeEntryEligiblePlayers({
+export function serializeEntryEligiblePlayers({
   eligiblePlayers,
   teamsById,
   teamsByCode,
   teamsByName,
+  activeOnly,
 }: {
   eligiblePlayers: Doc<'eligiblePlayers'>[]
   teamsById: Map<Id<'teams'>, Doc<'teams'>>
   teamsByCode: Map<string, Doc<'teams'>>
   teamsByName: Map<string, Doc<'teams'>>
+  activeOnly: boolean
 }) {
   return eligiblePlayers
-    .filter((player) => player.isActive)
+    .filter((player) => !activeOnly || player.isActive)
     .sort((left, right) => left.name.localeCompare(right.name))
     .map((player) => {
       const team = resolvePlayerTeam(player, teamsById, teamsByCode, teamsByName)

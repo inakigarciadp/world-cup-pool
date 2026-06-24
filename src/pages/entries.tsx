@@ -8,13 +8,29 @@ import { Combobox } from '@/components/ui/combobox'
 import { saveEntry, type EntriesPayload } from '@/lib/httpApi'
 import { entriesQueryKey, entriesQueryOptions, requireLoadedEntries } from '@/lib/entries-query'
 import { leaderboardQueryKey } from '@/lib/leaderboard-query'
+import { useOverview } from '@/lib/overview-context'
 import { filterGoalscorers, getFlagEmoji, getTournamentGroups } from '@/lib/teams'
 import { getUserErrorMessage } from '@/lib/user-error'
 
 export function EntriesPage() {
+  const { overview } = useOverview()
   const { participantId } = useSearch({ from: '/_authenticated/entries' })
-  const { data, isLoading, error } = useQuery(entriesQueryOptions)
+  const [now, setNow] = useState(() => Date.now())
+  const canEditEntries = isEntryEditable(overview.pool, now)
+  const { data, isLoading, error } = useQuery(entriesQueryOptions(canEditEntries))
   const payload = data === null || data === undefined ? null : requireLoadedEntries(data)
+
+  useEffect(() => {
+    if (overview.pool.status !== 'open') {
+      return
+    }
+
+    const timeoutId = window.setTimeout(
+      () => setNow(Date.now()),
+      Math.max(overview.pool.entryLockAt - Date.now(), 0),
+    )
+    return () => window.clearTimeout(timeoutId)
+  }, [overview.pool.entryLockAt, overview.pool.status])
 
   return (
     <section className="space-y-7">
@@ -32,7 +48,7 @@ export function EntriesPage() {
 
       {payload ? (
         <>
-          <EntryEditor payload={payload} />
+          {canEditEntries ? <EntryEditor payload={payload} now={now} /> : null}
           <OtherEntries payload={payload} targetParticipantId={participantId} />
         </>
       ) : null}
@@ -40,22 +56,19 @@ export function EntriesPage() {
   )
 }
 
-function EntryEditor({ payload }: { payload: EntriesPayload }) {
+function EntryEditor({ payload, now }: { payload: EntriesPayload; now: number }) {
   const queryClient = useQueryClient()
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>(
     payload.currentEntry?.teamPickIds ?? [],
   )
   const [goalscorerPickIds, setGoalscorerPickIds] = useState<Record<string, string>>(() =>
     Object.fromEntries(
-      payload.currentEntry?.goalscorerPickIds.map((pick) => [
-        pick.tierId,
-        pick.eligiblePlayerId,
-      ]) ?? [],
+      payload.currentEntry?.goalscorerPickIds.map((pick) => [pick.tierId, pick.eligiblePlayerId]) ??
+        [],
     ),
   )
   const [goalscorerSearchByTier, setGoalscorerSearchByTier] = useState<Record<string, string>>({})
   const [showTournamentGroups, setShowTournamentGroups] = useState(false)
-  const [now, setNow] = useState(() => Date.now())
   const saveEntryMutation = useMutation({
     mutationFn: () =>
       saveEntry(
@@ -63,15 +76,15 @@ function EntryEditor({ payload }: { payload: EntriesPayload }) {
         Object.entries(goalscorerPickIds)
           .filter(([, eligiblePlayerId]) => eligiblePlayerId !== '')
           .map(([tierId, eligiblePlayerId]) => ({ tierId, eligiblePlayerId })),
-    ),
+      ),
     onSuccess: async () => {
       const nextEntries = await queryClient.fetchQuery({
-        ...entriesQueryOptions,
+        ...entriesQueryOptions(true),
         staleTime: 0,
       })
 
       if (nextEntries) {
-        queryClient.setQueryData(entriesQueryKey, nextEntries)
+        queryClient.setQueryData(entriesQueryKey(true), nextEntries)
       }
 
       await queryClient.invalidateQueries({ queryKey: leaderboardQueryKey })
@@ -86,7 +99,7 @@ function EntryEditor({ payload }: { payload: EntriesPayload }) {
       })
     },
   })
-  const isLocked = payload.pool.status !== 'open' || payload.pool.entryLockAt <= now
+  const isLocked = !isEntryEditable(payload.pool, now)
   const tournamentGroups = useMemo(() => getTournamentGroups(payload), [payload])
   const totalPicks = payload.teamTiers.reduce((acc, tier) => acc + tier.requiredPicks, 0)
   const pickedTeams = selectedTeamIds.length
@@ -94,18 +107,8 @@ function EntryEditor({ payload }: { payload: EntriesPayload }) {
   const lockDateLabel = formatEntryLockDate(payload.pool.entryLockAt)
   const progress = Math.min(
     100,
-    Math.round(
-      ((pickedTeams + pickedGoalscorers) / (totalPicks + payload.teamTiers.length)) * 100,
-    ),
+    Math.round(((pickedTeams + pickedGoalscorers) / (totalPicks + payload.teamTiers.length)) * 100),
   )
-
-  useEffect(() => {
-    const timeoutId = window.setTimeout(
-      () => setNow(Date.now()),
-      Math.max(payload.pool.entryLockAt - Date.now(), 0),
-    )
-    return () => window.clearTimeout(timeoutId)
-  }, [payload.pool.entryLockAt])
 
   function toggleTeam(teamId: string, requiredPicks: number, tierTeamIds: string[]) {
     setSelectedTeamIds((current) => {
@@ -249,8 +252,7 @@ function EntryEditor({ payload }: { payload: EntriesPayload }) {
             {payload.teamTiers.map((tier) => {
               const selectedGoalscorerId = goalscorerPickIds[tier.id] ?? ''
               const selectedGoalscorer =
-                payload.eligiblePlayers.find((player) => player.id === selectedGoalscorerId) ??
-                null
+                payload.eligiblePlayers.find((player) => player.id === selectedGoalscorerId) ?? null
               const availableGoalscorers = payload.eligiblePlayers.filter(
                 (player) => player.tierId === tier.id,
               )
@@ -540,4 +542,11 @@ function formatEntryLockDate(value: number) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(value)
+}
+
+function isEntryEditable(
+  pool: Pick<EntriesPayload['pool'], 'entryLockAt' | 'status'>,
+  now: number,
+) {
+  return pool.status === 'open' && pool.entryLockAt > now
 }
