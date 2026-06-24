@@ -16,6 +16,16 @@ const leaderboardEntryProjection = v.object({
   submittedAt: v.union(v.number(), v.null()),
 })
 
+const goalscorerLeaderboardEntryProjection = v.object({
+  playerId: v.id('eligiblePlayers'),
+  playerName: v.string(),
+  teamId: v.union(v.id('teams'), v.null()),
+  teamName: v.string(),
+  teamFifaCode: v.string(),
+  goals: v.number(),
+  isConfirmedTopScorer: v.boolean(),
+})
+
 const entryTeamPickOverviewProjection = v.object({
   tierName: v.string(),
   teamName: v.string(),
@@ -316,6 +326,13 @@ export default defineSchema({
     poolId: v.id('pools'),
     teamTiers: v.array(teamTierSummary),
     leaderboard: v.array(leaderboardEntryProjection),
+    updatedAt: v.number(),
+    updatedByParticipantId: v.union(v.id('participants'), v.null()),
+  }).index('by_poolId', ['poolId']),
+
+  goalscorerProjections: defineTable({
+    poolId: v.id('pools'),
+    goalscorerLeaderboard: v.array(goalscorerLeaderboardEntryProjection),
     updatedAt: v.number(),
     updatedByParticipantId: v.union(v.id('participants'), v.null()),
   }).index('by_poolId', ['poolId']),

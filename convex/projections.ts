@@ -29,10 +29,11 @@ export async function refreshHotPathProjections(
   }
 
   const leaderboard = await refreshLeaderboardProjection(ctx, poolId, options)
+  const goalscorers = await refreshGoalscorerProjection(ctx, poolId, options)
   const entries = await refreshEntriesProjection(ctx, poolId, options)
   const matches = await refreshMatchProjections(ctx, poolId, options)
 
-  return { leaderboard, entries, matches }
+  return { leaderboard, goalscorers, entries, matches }
 }
 
 export async function refreshLeaderboardProjection(
@@ -108,6 +109,63 @@ export async function refreshLeaderboardProjection(
   return {
     teamTiers: payload.teamTiers.length,
     leaderboardEntries: payload.leaderboard.length,
+  }
+}
+
+export async function refreshGoalscorerProjection(
+  ctx: MutationCtx,
+  poolId: Id<'pools'>,
+  options: ProjectionRefreshOptions,
+) {
+  const teams = await ctx.db
+    .query('teams')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .take(MAX_TEAMS)
+  const eligiblePlayers = await ctx.db
+    .query('eligiblePlayers')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .take(MAX_ELIGIBLE_PLAYERS)
+  const goals = await ctx.db
+    .query('matchGoals')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .take(MAX_GOALS)
+  const topScorerConfirmations = await ctx.db
+    .query('topScorerConfirmations')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .take(MAX_TOP_SCORER_CONFIRMATIONS)
+  const teamsById = new Map(teams.map((team) => [team._id, team]))
+  const teamsByCode = new Map(teams.map((team) => [team.fifaCode, team]))
+  const teamsByName = new Map(teams.map((team) => [team.name, team]))
+  const playersById = new Map(eligiblePlayers.map((player) => [player._id, player]))
+  const confirmedTopScorerIds = new Set(
+    topScorerConfirmations.map((confirmation) => confirmation.eligiblePlayerId),
+  )
+  const payload = {
+    poolId,
+    goalscorerLeaderboard: buildGoalscorerLeaderboard({
+      goals,
+      playersById,
+      teamsById,
+      teamsByCode,
+      teamsByName,
+      confirmedTopScorerIds,
+    }),
+    updatedAt: options.updatedAt,
+    updatedByParticipantId: options.updatedByParticipantId,
+  }
+  const existing = await ctx.db
+    .query('goalscorerProjections')
+    .withIndex('by_poolId', (q) => q.eq('poolId', poolId))
+    .unique()
+
+  if (existing === null) {
+    await ctx.db.insert('goalscorerProjections', payload)
+  } else {
+    await ctx.db.patch(existing._id, payload)
+  }
+
+  return {
+    goalscorers: payload.goalscorerLeaderboard.length,
   }
 }
 
@@ -588,6 +646,66 @@ export function serializeEntryEligiblePlayers({
         groupCode: team?.groupCode ?? '?',
       }
     })
+}
+
+function buildGoalscorerLeaderboard({
+  goals,
+  playersById,
+  teamsById,
+  teamsByCode,
+  teamsByName,
+  confirmedTopScorerIds,
+}: {
+  goals: Doc<'matchGoals'>[]
+  playersById: Map<Id<'eligiblePlayers'>, Doc<'eligiblePlayers'>>
+  teamsById: Map<Id<'teams'>, Doc<'teams'>>
+  teamsByCode: Map<string, Doc<'teams'>>
+  teamsByName: Map<string, Doc<'teams'>>
+  confirmedTopScorerIds: Set<Id<'eligiblePlayers'>>
+}) {
+  const goalsByPlayerId = new Map<Id<'eligiblePlayers'>, number>()
+
+  for (const goal of goals) {
+    if (goal.isOwnGoal) {
+      continue
+    }
+
+    const player = playersById.get(goal.creditedPlayerId) ?? null
+
+    if (player === null || !player.isActive) {
+      continue
+    }
+
+    goalsByPlayerId.set(
+      goal.creditedPlayerId,
+      (goalsByPlayerId.get(goal.creditedPlayerId) ?? 0) + 1,
+    )
+  }
+
+  return Array.from(goalsByPlayerId.entries())
+    .map(([playerId, goals]) => {
+      const player = playersById.get(playerId)
+
+      if (player === undefined) {
+        return null
+      }
+
+      const team = resolvePlayerTeam(player, teamsById, teamsByCode, teamsByName)
+
+      return {
+        playerId,
+        playerName: player.name,
+        teamId: team?._id ?? null,
+        teamName: team?.name ?? player.teamName,
+        teamFifaCode: team?.fifaCode ?? player.teamFifaCode ?? '',
+        goals,
+        isConfirmedTopScorer: confirmedTopScorerIds.has(playerId),
+      }
+    })
+    .filter(isPresent)
+    .sort(
+      (left, right) => right.goals - left.goals || left.playerName.localeCompare(right.playerName),
+    )
 }
 
 function buildMatchProjection({
